@@ -53,7 +53,7 @@ O check básico de isolamento também passou sobre esta imagem.
 
 ## Requisitos que esta imagem impõe ao runner da coleta
 
-Os pontos abaixo foram observados na validação. O runner do piloto sintético não os implementa, e o runner da coleta precisará implementá-los:
+Os pontos abaixo foram observados na validação. O runner do piloto sintético não os implementa. O [runner da coleta](../attempt/README.md) implementa os três primeiros e usa tmpfs de 2 GiB no home:
 
 - **Montagens executáveis.** `/tmp`, `/home/agent` e `/workspace` precisam ser montados com `exec`. Com o padrão `noexec` do Docker, `go run` falhou com `permission denied`, e binários compilados no workspace e módulos nativos do npm também não executariam.
 - **Proxy do Maven.** O Maven 3.9 ignora `HTTPS_PROXY` e `-Dhttps.proxyHost`. É preciso provisionar `~/.m2/settings.xml` com o proxy, como fez a validação.
