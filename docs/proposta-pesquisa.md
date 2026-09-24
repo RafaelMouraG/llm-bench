@@ -40,6 +40,16 @@ Quarta decisão de Rafael, no mesmo dia: o MiMo não terá substituto. A coleta 
 
 Quinta decisão de Rafael, no mesmo dia: Astra (`gpt-6-astra`, esforço `high`, no Codex) entra na coleta oficial, depois de ter a entrega aceita no [piloto com a tarefa real](piloto-tarefa-real.md). A coleta passa a ter quatro participantes: Opus, Sol, Astra e Muse. Sol e Astra compartilham harness, conta e esforço e diferem só no modelo; isso permite comparar dois modelos com o harness fixo, mas os dois consomem a mesma cota do ChatGPT.
 
+Outras decisões de Rafael de 24/09/2026, depois do piloto com a tarefa real:
+
+- **Prazo por tentativa:** 1800 s. As entregas aceitas levaram de 197 s a 602 s. O runner registra também todos os dados de recursos disponíveis no container.
+- **Q9 adotada:** o desempenho da API entregue entra no foco de qualidade ([GQM](gqm.md)). O perfil de carga de M16 foi adotado com `DATA_DIR` em disco.
+- **Binários dos harnesses:** fixados em disco, com hash, em vez de copiados do host a cada build ([runtime](../infra/runtime/README.md)).
+- **Paridade entre harnesses:** as diferenças observadas no piloto são documentadas, não corrigidas ([runner](../infra/attempt/README.md), §5).
+- **Aceitação:** não precisa distinguir as configurações. Espera-se que modelos de fronteira passem; a comparação se apoia em tempo, consumo, stack, desempenho e revisão qualitativa.
+- **Repetições:** uma tentativa por configuração na coleta oficial. Consequências na [GQM](gqm.md), §4.
+- **Cota:** as tentativas do piloto não chegaram perto do limite da sessão; a cota compartilhada de Sol e Astra não é uma restrição prática.
+
 Antes da coleta, será necessário registrar, por configuração: provedor, identificador solicitado e identificador efetivo quando observável, nível de raciocínio, versão do harness, parâmetros relevantes, arquivos de configuração e manifesto das skills. Aliases mutáveis e configurações não observáveis deverão ser declarados como limitações.
 
 ## 3. Tarefa e condições ainda em definição
@@ -100,16 +110,16 @@ Proposta: manter resultados do piloto fora da análise oficial e usar uma tarefa
 
 | Tema | Definição ou validação necessária |
 |---|---|
-| Participantes | Validar as combinações selecionadas em execução e congelar seus manifestos; confirmar o conjunto final da coleta após o piloto |
+| Participantes | Conjunto definido em 24/09/2026: Opus, Sol, Astra e Muse, todos validados no piloto com a tarefa real. Falta congelar os manifestos de configuração |
 | Escopo | Contrato HTTP, requisitos obrigatórios e situações de robustez |
-| Repetições | Quantidade por configuração e forma de distribuir a ordem das execuções |
-| Prazo e recursos | Tempo por tentativa, orçamento, CPU, memória e demais limites |
+| Repetições | Decidido em 24/09/2026: uma tentativa por configuração. Falta definir a ordem das execuções |
+| Prazo e recursos | Prazo por tentativa decidido em 24/09/2026: 1800 s. CPU, memória e demais limites continuam provisórios |
 | Rede | Acesso permitido a provedores, pacotes, documentação e outros serviços |
 | Skills | Seleção, revisão, versões e diferenças entre ferramentas |
 | Assistência humana | Intervenções permitidas, registro e efeito na interpretação |
 | Operação | Autenticação, falhas de infraestrutura, interrupções e política de substituição |
 | Avaliação | Rubrica, testes, critérios de aceitação, anonimização e resolução de divergências |
-| Medição | Fronteiras do tempo medido, atribuição de custo e dados indisponíveis; tabela de preços para a estimativa de custo; adoção de Q8 e Q9 e perfil de carga da medição de latência |
+| Medição | Fronteiras do tempo medido, atribuição de custo e dados indisponíveis; tabela de preços para a estimativa de custo; adoção de Q8. Q9 e o perfil de carga foram adotados em 24/09/2026 |
 | Congelamento | Versões dos materiais, avaliador e procedimento para corrigir defeitos do próprio estudo |
 
 ## 8. Alcance das conclusões

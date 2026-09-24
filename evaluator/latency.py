@@ -5,17 +5,20 @@ Uso: python3 evaluator/latency.py ENTREGA [--out DIR] [--label NOME] [--config A
 
 Não é aceitação: não produz veredito nem altera A_i. Reaproveita de evaluate.py o
 ambiente limpo (container novo, build com rede só para os registros, servidor sem
-rede, DATA_DIR em tmpfs) e mede, com um gerador de carga em Go (evaluator/loadgen)
-num container cliente na mesma rede interna:
+rede) e mede, com um gerador de carga em Go (evaluator/loadgen) num container cliente
+na mesma rede interna:
 
   GET /{code}       sobre links semeados antes da medição; válido = 302 e Location igual à url
   POST /api/links   sem alias; válido = 201 com objeto JSON e code
 
-Para cada operação e nível de concorrência (malha fechada): aquecimento descartado,
-número fixo de requisições medidas, percentis p50/p90/p95/p99 só das respostas
-válidas, vazão e taxa de erro (respostas fora do contrato e erros de transporte).
-Servidor e cliente ficam em conjuntos de CPUs distintos. O perfil de carga está em
-evaluator/config.json, seção rnf11_perfil_carga, e é provisório.
+Para cada operação, duas fases por duração, com aquecimento descartado:
+  aberta   taxa fixa; latência contada do instante agendado (sem coordinated omission)
+  fechada  concorrência fixa (saturação), com teto de requisições
+Percentis p50/p90/p95/p99/p99.9 e máximo só das respostas válidas, vazão, taxa de erro,
+CPU do servidor por fase (cgroup) e pico de RSS dos processos do servidor (VmHWM).
+DATA_DIR fica em disco (volume Docker) ou em tmpfs, conforme o perfil. Servidor e
+cliente ficam em conjuntos de CPUs distintos. O perfil está em evaluator/config.json,
+seção rnf11_perfil_carga.
 
 Entrega que não compila ou não fica pronta fica sem M16 (ausente, sem valor).
 Saída: result.json e summary.txt em .pilot/latency/<run_id>/ (padrão).
@@ -36,10 +39,39 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import evaluate as ev  # noqa: E402
 
-TOOL_VERSION = "0.1.0"
+TOOL_VERSION = "0.2.0"
 PREFIX = "llmbench-lat-"
 LOADGEN_SRC = HERE / "loadgen" / "main.go"
 OPS = ("redirect", "create")
+
+# Executado no container da entrega: CPU do cgroup e memória dos processos do servidor.
+PROBE = r'''
+import json, os
+def cpu_usec():
+    for line in open("/sys/fs/cgroup/cpu.stat"):
+        k, v = line.split()
+        if k == "usage_usec":
+            return int(v)
+procs = []
+for pid in filter(str.isdigit, os.listdir("/proc")):
+    try:
+        cmd = open(f"/proc/{pid}/cmdline", "rb").read().replace(b"\0", b" ").decode(errors="replace").strip()
+        status = dict(l.split(":", 1) for l in open(f"/proc/{pid}/status") if ":" in l)
+    except OSError:
+        continue
+    if not cmd or cmd.startswith(("sleep", "/sbin/docker-init")) or "container_helper" in cmd or "python3 -c" in cmd:
+        continue
+    kb = lambda k: int(status.get(k, "0 kB").split()[0]) * 1024
+    procs.append({"pid": int(pid), "cmd": cmd[:120], "rss": kb("VmRSS"), "hwm": kb("VmHWM"),
+                  "threads": int(status.get("Threads", "0").strip() or 0)})
+mem = {}
+for line in open("/sys/fs/cgroup/memory.stat"):
+    k, v = line.split()
+    if k in ("anon", "file", "shmem"):
+        mem[k] = int(v)
+print(json.dumps({"cpu_usec": cpu_usec(), "processes": procs, "memory_current": int(open("/sys/fs/cgroup/memory.current").read()),
+                  "memory_stat": mem}))
+'''
 
 
 def loadgen_binary(image, image_id):
@@ -74,31 +106,92 @@ class LatencyRun(ev.Run):
         super().__init__(delivery, out_dir, raw_cfg, cfg, label)
         self.base = PREFIX + self.run_id.lower()
         self.net, self.proxy, self.app, self.client = (f"{self.base}-{s}" for s in ("net", "proxy", "app", "client"))
+        self.volume = f"{self.base}-data"
         self.profile = raw_cfg["rnf11_perfil_carga"]
+        self.on_disk = self.profile["data_dir"]["value"] == "disk"
         self.measurements = []
         self.status = None
 
+    # -- containers ------------------------------------------------------------------
+    def setup(self, tar_bytes):
+        """Como Run.setup, mas com DATA_DIR num volume em disco quando o perfil pede."""
+        if not self.on_disk:
+            return super().setup(tar_bytes)
+        r = self.res
+        ev.docker("volume", "create", self.volume)
+        # O volume nasce com dono root; um container de uso único, sem rede, só com CHOWN, o entrega ao UID 1001.
+        ev.docker("run", "--rm", "--name", f"{self.base}-chown", "--network", "none", "--read-only", "--cap-drop", "ALL",
+                  "--cap-add", "CHOWN", "--user", "0", "-v", f"{self.volume}:/data", self.image, "chown", "1001:1001", "/data")
+        ev.docker("network", "create", "--internal", self.net)
+        ev.docker("run", "-d", "--name", self.proxy, *self.hardening("256m", 1, 128),
+                  "--tmpfs", "/tmp:rw,nosuid,nodev,size=16m",
+                  "--env", "PILOT_ALLOWED_HOSTS=" + ",".join(self.raw_cfg["registries"]),
+                  self.image, "python3", "/opt/pilot/proxy.py")
+        ev.docker("network", "connect", "--alias", ev.PROXY_ALIAS, self.net, self.proxy)
+        ev.docker("run", "-d", "--name", self.app, "--network", self.net, "--network-alias", ev.APP_ALIAS,
+                  *self.hardening(r["app_memory"], r["app_cpus"], r["app_pids"]),
+                  "--tmpfs", f"/tmp:rw,nosuid,nodev,exec,size={r['tmpfs_tmp']}",
+                  "--tmpfs", f"/home/agent:rw,nosuid,nodev,exec,uid=1001,gid=1001,mode=700,size={r['tmpfs_home']}",
+                  "--tmpfs", f"/workspace:rw,nosuid,nodev,exec,uid=1001,gid=1001,mode=700,size={r['tmpfs_workspace']}",
+                  "-v", f"{self.volume}:/data",
+                  "--tmpfs", f"/evaluator:rw,nosuid,nodev,uid=1001,gid=1001,mode=700,size={r['tmpfs_evaluator']}",
+                  self.image, "sleep", "infinity")
+        ev.docker("exec", "-i", self.app, "tar", "-x", "-C", "/workspace", "-f", "-", input=tar_bytes, binary=True, timeout=300)
+        ev.docker("exec", "-i", self.app, "sh", "-c", "cat > /evaluator/container_helper.py",
+                  input=(HERE / "container_helper.py").read_text())
+        settings = (f"<settings><proxies><proxy><id>eval-proxy</id><active>true</active><protocol>https</protocol>"
+                    f"<host>{ev.PROXY_ALIAS}</host><port>8080</port><nonProxyHosts>localhost|127.0.0.1</nonProxyHosts>"
+                    f"</proxy></proxies></settings>\n")
+        ev.docker("exec", "-i", self.app, "sh", "-c", "mkdir -p ~/.m2 && cat > ~/.m2/settings.xml", input=settings)
+        fs = ev.docker("exec", self.app, "sh", "-c", "stat -f -c %T /data; df -B1 --output=source,size /data | tail -1", check=False)
+        self.diag["data_dir"] = {"mode": "disk (volume Docker)", "volume": self.volume, "fs": fs.stdout.split()}
+
     def cleanup(self):
         codes = {}
-        for name in (self.client, self.app, self.proxy):
+        for name in (self.client, self.app, self.proxy, f"{self.base}-chown"):
             codes[name] = ev.docker("rm", "-f", "-v", name, check=False).returncode
         codes[self.net] = ev.docker("network", "rm", self.net, check=False).returncode
+        if self.on_disk:
+            codes[self.volume] = ev.docker("volume", "rm", self.volume, check=False).returncode
         left = ev.docker("ps", "-a", "--filter", f"name={self.base}", "--format", "{{.Names}}", check=False).stdout.split()
         left += ev.docker("network", "ls", "--filter", f"name={self.base}", "--format", "{{.Name}}", check=False).stdout.split()
+        left += ev.docker("volume", "ls", "--filter", f"name={self.base}", "--format", "{{.Name}}", check=False).stdout.split()
         return {"exit_codes": codes, "leftover": left}
 
-    def loadgen(self, op, concurrency, warmup, requests, codes=None, urls=None):
-        params = {"host": ev.APP_ALIAS, "port": 8080, "op": op, "concurrency": concurrency, "warmup": warmup,
-                  "requests": requests, "codes": codes or [], "urls": urls or [],
-                  "timeout_ms": self.profile["request_timeout_ms"], "tag": self.run_id.lower()}
+    # -- medição ---------------------------------------------------------------------
+    def loadgen(self, params):
+        params = {"host": ev.APP_ALIAS, "port": 8080, "timeout_ms": self.profile["request_timeout_ms"],
+                  "tag": self.run_id.lower(), **params}
         r = ev.docker("exec", "-i", self.client, "/tmp/loadgen", input=json.dumps(params),
                       timeout=self.profile["phase_timeout_seconds"], check=False)
         if r.returncode:
-            raise ev.EvaluatorError(f"loadgen {op} c={concurrency} falhou ({r.returncode}): {r.stderr[-800:]}")
+            raise ev.EvaluatorError(f"loadgen {params['op']}/{params.get('mode')} falhou ({r.returncode}): {r.stderr[-800:]}")
         return json.loads(r.stdout)
+
+    def probe(self):
+        return json.loads(ev.docker("exec", self.app, "python3", "-c", PROBE, timeout=60).stdout)
 
     def alive(self):
         return self.client_call("ready", {"host": ev.APP_ALIAS, "port": 8080}, 3, timeout=30)["ready"]
+
+    def phase(self, op, mode, codes, urls):
+        prof = self.profile[mode]
+        params = {"op": op, "mode": mode, "warmup_s": prof["warmup_s"], "duration_s": prof["duration_s"],
+                  "codes": codes, "urls": urls}
+        if mode == "open":
+            params.update(rate=prof["rate"], max_inflight=prof["max_inflight"])
+        else:
+            params.update(concurrency=prof["concurrency"], max_requests=prof["max_requests"])
+        before, t0 = self.probe(), time.monotonic()
+        m = self.loadgen(params)
+        after = self.probe()
+        m["phase_seconds"] = round(time.monotonic() - t0, 2)
+        cpu_s = (after["cpu_usec"] - before["cpu_usec"]) / 1e6
+        total = m.get("valid", 0) + m.get("warmup_valid", 0)
+        m["server_cpu"] = {"cpu_seconds": round(cpu_s, 3),
+                           "cpu_ms_per_valid_request": round(cpu_s * 1000 / total, 4) if total else None,
+                           "nota": "cgroup do container da entrega durante a fase inteira (aquecimento incluído)"}
+        return m
 
     def execute(self, loadgen_path):
         tar_bytes, tree_hash, count, deps = ev.pack_delivery(self.delivery)
@@ -125,25 +218,30 @@ class LatencyRun(ev.Run):
             self.status = f"ausente: GET /health não respondeu 200 {self.not_ready(s1)}"
             self.stop(1)
             return
-        seed = self.loadgen("seed", 4, 0, prof["seed_links"])
+        self.diag["server_idle"] = self.probe()
+        seed = self.loadgen({"op": "seed", "concurrency": 4, "requests": prof["seed_links"]})
         codes, urls = seed["codes"], seed["urls"]
         self.diag["seed"] = {"links": len(codes)}
         for op in OPS:
-            spec = prof[op]
-            for c in prof["concurrency"]:
+            for mode in ("open", "closed"):
                 if not self.alive():
-                    self.measurements.append({"op": op, "concurrency": c, "skipped": "servidor indisponível antes da fase"})
+                    self.measurements.append({"op": op, "mode": mode, "skipped": "servidor indisponível antes da fase"})
                     continue
-                t0 = time.monotonic()
-                m = self.loadgen(op, c, spec["warmup_requests"], spec["requests"], codes, urls)
-                m["phase_seconds"] = round(time.monotonic() - t0, 2)
-                self.measurements.append(m)
+                self.measurements.append(self.phase(op, mode, codes, urls))
             if op == "redirect":
                 # Sanidade: cada 302 válido (aquecimento incluído) deve ter somado uma visita (RNF06).
                 expected = sum(x.get("valid", 0) + x.get("warmup_valid", 0) for x in self.measurements if x["op"] == "redirect")
-                observed = self.loadgen("visits", 8, 0, 1, codes, urls).get("visits_total")
+                observed = self.loadgen({"op": "visits", "concurrency": 8, "codes": codes, "urls": urls}).get("visits_total")
                 self.diag["visits_check"] = {"expected_from_valid_302": expected, "observed_sum": observed,
                                              "ok": observed == expected}
+        final = self.probe()
+        server = [p for p in final["processes"]]
+        self.diag["server_memory"] = {
+            "rss_peak_bytes": sum(p["hwm"] for p in server), "rss_current_bytes": sum(p["rss"] for p in server),
+            "processes": server, "cgroup_memory_current": final["memory_current"], "cgroup_memory_stat": final["memory_stat"],
+            "nota": "rss_peak_bytes soma o VmHWM dos processos do servidor; o cgroup inclui tmpfs e cache de arquivos"}
+        du = ev.docker("exec", self.app, "du", "-sb", "/data", check=False).stdout.split()
+        self.diag["data_dir_bytes_after"] = int(du[0]) if du and du[0].isdigit() else None
         self.diag["alive_after"] = self.alive()
         self.stop(1)
         self.status = "completa"
@@ -153,6 +251,7 @@ class LatencyRun(ev.Run):
         started_at, t0 = ev.utc_now(), time.monotonic()
         info = json.loads(ev.docker("image", "inspect", self.image).stdout)[0]
         self.diag["image_id"] = info["Id"]
+        self.diag["image_rootfs_sha256"] = hashlib.sha256(json.dumps(info["RootFS"]["Layers"]).encode()).hexdigest()
         loadgen_key = None
         try:
             loadgen_path, loadgen_key = loadgen_binary(self.image, info["Id"])
@@ -170,7 +269,7 @@ class LatencyRun(ev.Run):
         if self.errors:
             self.status = "inconclusiva (falha do instrumento)"
         result = {
-            "schema": "llm-bench-latency/0.1", "tool_version": TOOL_VERSION, "requirement": "RNF11", "metric": "M16",
+            "schema": "llm-bench-latency/0.2", "tool_version": TOOL_VERSION, "requirement": "RNF11", "metric": "M16",
             "acceptance": "não — diagnóstico; não altera A_i",
             "run_id": self.run_id, "label": self.label, "status": self.status,
             "started_at_utc": started_at, "finished_at_utc": ev.utc_now(),
@@ -178,7 +277,8 @@ class LatencyRun(ev.Run):
             "image": self.image, "profile": self.profile, "loadgen": {"source": "evaluator/loadgen/main.go", "key": loadgen_key},
             "placement": {"app_cpus": self.res["app_cpus"], "app_memory": self.res["app_memory"],
                           "app_cpuset": self.profile["app_cpuset"], "client_cpuset": self.profile["client_cpuset"],
-                          "host_cpus": os.cpu_count(), "host_kernel": platform.release()},
+                          "host_cpus": os.cpu_count(), "host_kernel": platform.release(),
+                          "data_dir": self.profile["data_dir"]["value"]},
             "base_url": self.base_url,
             "measurements": self.measurements,
             "diagnostics": self.diag, "errors": self.errors, "cleanup": cleanup,
@@ -191,27 +291,43 @@ class LatencyRun(ev.Run):
 
 def render(result):
     d = result["diagnostics"]
+    pl = result["placement"]
     lines = [f"Latência {result['run_id']} ({result['label']}) — {result['status']}",
              f"Entrega: árvore sha256 {d.get('delivery', {}).get('tree_sha256', '?')[:16]}…  "
              f"build {d.get('build', {}).get('seconds', '?')} s  prontidão {d.get('start', {}).get('seconds', '?')} s",
-             f"Servidor: CPUs {result['placement']['app_cpuset']} ({result['placement']['app_cpus']}), "
-             f"cliente: CPUs {result['placement']['client_cpuset']}; perfil provisório (rnf11_perfil_carga)", "",
-             f"{'operação':<9} {'conc':>4} {'válidas':>8} {'erro':>7} {'p50 ms':>8} {'p90 ms':>8} {'p95 ms':>8} "
-             f"{'p99 ms':>8} {'máx ms':>8} {'req/s':>9}"]
+             f"Servidor: CPUs {pl['app_cpuset']} ({pl['app_cpus']}), cliente: CPUs {pl['client_cpuset']}; "
+             f"DATA_DIR em {pl['data_dir']}", "",
+             f"{'operação':<9} {'fase':<18} {'válidas':>8} {'erro':>7} {'p50':>7} {'p99':>7} {'p99.9':>7} {'máx':>8} "
+             f"{'req/s':>9} {'CPU ms/req':>10}"]
     for m in result["measurements"]:
         if "skipped" in m:
-            lines.append(f"{m['op']:<9} {m['concurrency']:>4}  pulada: {m['skipped']}")
+            lines.append(f"{m['op']:<9} {m['mode']:<18} pulada: {m['skipped']}")
             continue
         lat = m.get("latency_ms") or {}
-        cell = lambda k: f"{lat[k]:>8.2f}" if k in lat else f"{'—':>8}"  # noqa: E731
-        lines.append(f"{m['op']:<9} {m['concurrency']:>4} {m['valid']:>8} {m['error_rate']:>7.2%} {cell('p50')} {cell('p90')} "
-                     f"{cell('p95')} {cell('p99')} {cell('max')} {m['throughput_valid_rps']:>9.1f}")
+        cell = lambda k, w=7: f"{lat[k]:>{w}.2f}" if k in lat else f"{'—':>{w}}"  # noqa: E731
+        phase = f"aberta {m['target_rate']:.0f}/s" if m["mode"] == "open" else f"fechada c={m['concurrency']}"
+        if m.get("capped_by_max_requests"):
+            phase += " (teto)"
+        cpu = (m.get("server_cpu") or {}).get("cpu_ms_per_valid_request")
+        lines.append(f"{m['op']:<9} {phase:<18} {m['valid']:>8} {m['error_rate']:>7.2%} {cell('p50')} {cell('p99')} "
+                     f"{cell('p999')} {cell('max', 8)} {m['throughput_valid_rps']:>9.1f} "
+                     f"{(f'{cpu:.3f}' if cpu is not None else '—'):>10}")
+        if m.get("start_lag_ms"):
+            lag = m["start_lag_ms"]
+            lines.append(f"          atraso de envio do cliente: p50 {lag['p50']:.3f} ms, p99 {lag['p99']:.3f} ms; "
+                         f"tempo de serviço p50 {m['service_ms']['p50']:.2f} ms, p99 {m['service_ms']['p99']:.2f} ms"
+                         + (f"; {m['late_starts_over_1ms']} envios com mais de 1 ms de atraso" if m.get('late_starts_over_1ms') else ""))
         if m.get("invalid_samples"):
             lines.append(f"          exemplos fora do contrato: {m['invalid_samples'][:2]}")
+    lines.append("latência em ms")
     vc = d.get("visits_check")
     if vc:
         lines += ["", f"Sanidade: visitas somadas {vc['observed_sum']} para {vc['expected_from_valid_302']} redirecionamentos 302 válidos"
                   + (" — ok" if vc["ok"] else " — DIVERGE")]
+    sm = d.get("server_memory")
+    if sm:
+        lines.append(f"Memória do servidor: pico de RSS {sm['rss_peak_bytes'] / 2**20:.1f} MiB; DATA_DIR ao final: "
+                     f"{(d.get('data_dir_bytes_after') or 0) / 2**20:.1f} MiB")
     if result["errors"]:
         lines += ["", "Falhas do instrumento:"] + ["  " + e[:300] for e in result["errors"]]
     left = result["cleanup"]["leftover"]

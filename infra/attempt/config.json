@@ -1,7 +1,7 @@
 {
   "_nota": "Parâmetros do runner da coleta (scripts/run-attempt.py). Valores 'provisório — calibrar' ou 'provisório — decidir' não estão congelados; nenhum resultado é oficial enquanto o protocolo não for congelado.",
   "image": "llm-bench-runtime:20260924",
-  "timeout_seconds": {"value": 3600, "status": "provisório — calibrar", "nota": "Prazo por tentativa (C3, 'Prazo por tentativa'); calibrar no piloto com a tarefa real"},
+  "timeout_seconds": {"value": 1800, "status": "decidido por Rafael em 24/09/2026", "nota": "Prazo por tentativa (C3, 'Prazo por tentativa'). No piloto com a tarefa real, as entregas aceitas levaram de 197 s a 602 s; 1800 s dá três vezes de folga sobre a mais lenta"},
   "kill_after_seconds": {"value": 10, "status": "provisório — calibrar", "nota": "Tolerância entre SIGTERM e SIGKILL ao estourar o prazo, como no piloto"},
   "resources": {
     "memory": "4g",

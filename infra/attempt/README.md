@@ -65,6 +65,16 @@ O `summary.json` registra:
 - **Término do harness (`harness_end`):** `reason` dos `step_finish` no OpenCode; `subtype` do `result` e `stop_reason` no Claude Code; tipos de evento no Codex. `output_limit_hit` indica resposta interrompida pelo limite de saída do modelo: `length` no OpenCode, `max_tokens` no Claude Code. No Codex, fica `null`, porque o formato não foi validado. `stdout_lines` conta as linhas e as que não são JSON.
 - **Avisos (`warnings`):** entrega sem arquivos, término por limite de saída, sessão do OpenCode não exportada e última linha do stdout que não é JSON (possível truncamento). Os avisos não alteram `ok` nem o código de saída: descrevem o resultado, não uma falha do runner.
 - **Entrega, avaliação, destinos vistos pelo proxy, processos encerrados antes do congelamento e códigos de limpeza.** Em `delivery`, `entries` conta arquivos e diretórios, e `files`, só arquivos.
+- **Recursos do container da tentativa (`resources_observed`)**, lidos do cgroup antes de encerrar os processos:
+  - pico e valor atual de memória, com a composição (`anon`, `file`, `shmem`);
+  - eventos de memória, inclusive `oom_kill`, que gera aviso;
+  - CPU total, de usuário e de sistema, e *throttling*;
+  - pico de processos e E/S;
+  - uso de disco de `/workspace`, do home e de `/tmp`.
+  
+  É o container inteiro: harness, ferramentas e processos do agente. O pico de memória inclui tmpfs e cache de arquivos.
+- **Atividade do agente (`activity`):** chamadas de ferramenta por tipo, segundo os eventos do harness. No Claude Code, também turnos, duração da API e negações de permissão; no OpenCode, passos e ferramentas com erro; no Codex, mensagens e comandos com saída ≠ 0. Comandos que o próprio Codex recusa não aparecem nos eventos, só no `stderr.txt`.
+- **Rastreabilidade:** `runner_sha256` (hash deste script), `image_rootfs_sha256` e `image_created`. Com o armazenamento containerd do Docker, o ID da imagem é o digest do índice OCI, que muda a cada build por causa da atestação de proveniência. O conteúdo é identificado pelas camadas.
 
 Não publicar esses arquivos sem revisão: o stdout do agente e a entrega podem conter trechos inesperados.
 
@@ -95,7 +105,7 @@ Na tentativa real seguinte (`20260924T180503Z-mimo-393380`), a sessão do OpenCo
 
 Estão em `config.json` e não foram decididas por Rafael:
 
-- **Prazo por tentativa:** 3600 s, com 10 s de tolerância. Calibrar no piloto com a tarefa real (C3).
+- **Prazo por tentativa:** **1800 s, decidido por Rafael em 24/09/2026** a partir do piloto com a tarefa real, com 10 s de tolerância.
 - **Recursos do container:**
   - 4 GiB de memória, 2 CPUs e 512 processos;
   - tmpfs com home de 2 GiB e `/tmp` e workspace de 1 GiB.
@@ -106,6 +116,14 @@ Estão em `config.json` e não foram decididas por Rafael:
   - OpenCode: bash, read, edit, glob, grep, list e as ferramentas de tarefas.
   - Codex: `danger-full-access` dentro do container.
   Sem web, subagentes, skills ou MCP. A paridade entre harnesses é aproximada: por exemplo, o OpenCode tem ferramenta de lista de tarefas, e o Claude Code, nesta configuração, não.
+- **Paridade observada no piloto (documentada, não corrigida, por decisão de Rafael em 24/09/2026)** ([registro](../../docs/piloto-tarefa-real.md)):
+  - **OpenCode:** com `"*": "deny"`, a regra padrão `external_directory` fica em `ask`, que vira recusa no `opencode run`. O agente não usa `/tmp` nem o home em comandos que citem esses caminhos. O Muse passou a gravar dados de teste em `/workspace` e os apagou antes do fim.
+  - **OpenCode:** a ferramenta bash espera processos em background que herdam a saída, até o timeout de 120 s.
+  - **Codex:** a política do próprio harness recusa comandos no estilo `rm -rf`, mesmo com `danger-full-access` e `-a never`. O Sol refez a limpeza em Python.
+  - **Claude Code:** o evento `init` lista skills, agentes e o plugin `agents-md` embutidos. Sem as ferramentas de skill e de subagente, eles não podem ser invocados, e nenhum foi usado.
+  - **Claude Code e Codex:** usam `/tmp` livremente.
+  - **Modelo servido:** o OpenCode informa o modelo pela sessão exportada, e o Claude Code pelo evento `init`. O Codex não informa nos eventos `--json`.
+  - **Limite de saída:** detectável no OpenCode (`length`) e no Claude Code (`max_tokens`); no Codex, não.
 - **Skills:** nenhuma, como no piloto. A seleção continua em aberto na proposta.
 - **Prazo de prontidão no enunciado:** usa o valor provisório do avaliador. Se o valor mudar, o prompt muda junto, e o hash registra a mudança.
 

@@ -4,15 +4,17 @@ Versão 0.2 — 24/09/2026. Proposta candidata, incorporando a discussão e o ma
 
 Alterações da versão 0.2, a pedido de Rafael: consumo de tokens (M14) e estimativa de custo de API em M9; stack escolhida (Q8, M15); tempo de resposta da API entregue (Q9, M16). Todas são candidatas.
 
+Decisões de Rafael de 24/09/2026, depois do [piloto com a tarefa real](piloto-tarefa-real.md): Q9 adotada, com o foco de qualidade ampliado para o desempenho da API entregue; perfil de carga de M16 adotado (§6); uma tentativa por configuração na coleta oficial (§4); aceitação sem necessidade de distinguir as configurações (§4).
+
 ## 1. Objetivo GQM
 
-> Analisar o processo de desenvolvimento e as entregas produzidas por configurações completas de agentes de IA — modelo, harness e skills — na implementação de uma API, com o propósito de caracterizá-las e compará-las, de forma exploratória, quanto à correção funcional, robustez, manutenibilidade e eficiência, do ponto de vista de desenvolvedores responsáveis por revisar e utilizar as entregas, no contexto de uma tarefa controlada, com contrato HTTP previamente definido, stack livre, prazo limitado, execuções isoladas e avaliação de entregas congeladas.
+> Analisar o processo de desenvolvimento e as entregas produzidas por configurações completas de agentes de IA — modelo, harness e skills — na implementação de uma API, com o propósito de caracterizá-las e compará-las, de forma exploratória, quanto à correção funcional, robustez, manutenibilidade, eficiência e desempenho da API entregue, do ponto de vista de desenvolvedores responsáveis por revisar e utilizar as entregas, no contexto de uma tarefa controlada, com contrato HTTP previamente definido, stack livre, prazo limitado, execuções isoladas e avaliação de entregas congeladas.
 
 | Elemento | Definição |
 |---|---|
 | Objeto | Processo de desenvolvimento e entregas das configurações completas |
 | Propósito | Caracterizar e comparar exploratoriamente |
-| Foco de qualidade | Correção funcional, robustez, manutenibilidade e eficiência |
+| Foco de qualidade | Correção funcional, robustez, manutenibilidade, eficiência e desempenho da API entregue (incluído em 24/09/2026 com a adoção de Q9) |
 | Ponto de vista | Desenvolvedores que precisam revisar e utilizar as entregas |
 | Contexto | Uma tarefa de API, contrato fechado, stack livre, limite de tempo e isolamento |
 
@@ -27,7 +29,7 @@ O limite de tempo e o contrato ainda serão definidos. A configuração é a con
 | Manutenibilidade | Facilidade de compreender, analisar, testar e modificar a solução; a revisão avaliará indícios dessa facilidade |
 | Eficiência | Recursos necessários para produzir a entrega, interpretados em relação à qualidade obtida |
 
-Eficiência se refere ao processo de desenvolvimento pelo agente. Desempenho da API, como latência e consumo de memória, depende de uma pergunta específica e não está implicitamente incluído. A pergunta candidata Q9 trata do tempo de resposta. Se adotada, o foco de qualidade do objetivo passará a incluir explicitamente o desempenho da API entregue; essa ampliação ainda não foi decidida.
+Eficiência se refere ao processo de desenvolvimento pelo agente. Desempenho da API, como latência e consumo de memória, depende de uma pergunta específica e não está implicitamente incluído. A pergunta Q9 trata do tempo de resposta. Rafael a adotou em 24/09/2026, e o foco de qualidade passou a incluir explicitamente o desempenho da API entregue, medido por M16 fora da aceitação.
 
 A inspeção de código fornece evidências de organização, clareza e testabilidade. Medir diretamente o esforço de manutenção exigiria uma tarefa adicional de modificação, ainda não prevista. Consistência entre tentativas é uma análise transversal às quatro dimensões.
 
@@ -43,7 +45,7 @@ A inspeção de código fornece evidências de organização, clareza e testabil
 | Q6. Quanto os resultados variam entre tentativas da mesma configuração? | M11: distribuição e dispersão de aceitação, atendimento, tempo e custo | Resultados de todas as tentativas |
 | Q7. Que qualidades e problemas internos relevantes existem na entrega? | M12: níveis por dimensão qualitativa; M13: divergências entre avaliações e resolução | Rubrica anonimizada com evidências e participação humana |
 | Q8 (candidata). Que stack a configuração escolhe para a entrega? | M15: perfil da stack — linguagem e versão, framework HTTP, persistência, dependências diretas e forma de execução | Manifestos e arquivos da entrega congelada, instruções entregues |
-| Q9 (candidata). Com que tempo a API entregue responde às requisições do contrato? | M16: latência por operação do contrato sob perfil de carga fixo, com a taxa de erros durante a medição | Medição do avaliador sobre a entrega congelada, em ambiente controlado |
+| Q9 (adotada em 24/09/2026). Com que tempo a API entregue responde às requisições do contrato? | M16: latência por operação do contrato sob perfil de carga fixo, com a taxa de erros, a vazão e os recursos do servidor durante a medição | Medição do avaliador sobre a entrega congelada, em ambiente controlado |
 
 M5 detalha requisitos já representados em M3; não constitui pontuação adicional. M11 resume medidas anteriores; não é um segundo resultado independente. M7 registra obstáculos observados na avaliação, enquanto M10 registra assistência durante a produção. M14 é insumo diagnóstico e base da estimativa de M9, e não uma medida de eficiência isolada. M15 caracteriza a entrega e não é pontuação: stacks diferentes não são ordenadas por qualidade.
 
@@ -63,6 +65,14 @@ Para os requisitos obrigatórios, registrar:
 - `N = S + V + U`: total de requisitos obrigatórios, definido antes da coleta.
 
 M3 será o atendimento verificado `S/N`, sempre acompanhado de `S`, `V` e `U`. Quando `U > 0`, a proporção não descreve conclusivamente o comportamento dos requisitos sem evidência. Por exemplo, falha de inicialização pode determinar rejeição da entrega e ainda deixar vários requisitos de negócio sem observação.
+
+**Decisões de 24/09/2026.**
+
+- **Uma tentativa por configuração** na coleta oficial, por decisão de Rafael, pelo tempo disponível. Consequências:
+  - M2 fica 0/1 ou 1/1 por configuração.
+  - Q6 e M11 (variação entre tentativas) ficam sem dados e devem ser registrados como ausentes, não estimados.
+  - Uma diferença entre configurações observada numa única tentativa não distingue efeito da configuração de variação da execução. As conclusões descrevem uma execução de cada configuração.
+- **A aceitação não precisa distinguir as configurações.** Os participantes são modelos de fronteira, e a expectativa de Rafael é que todos passem. No piloto, as quatro configurações mantidas tiveram `A_i = 1`, com 35 S. A comparação se apoia então em M8, M14, M15, M16 e na revisão qualitativa (M12). `A_i` continua registrado como resultado.
 
 O peso não será determinado pela quantidade de testes. A granularidade dos requisitos e as condições necessárias para considerar cada um satisfeito deverão ser congeladas previamente. A contagem de testes aprovados poderá aparecer como diagnóstico.
 
@@ -91,6 +101,14 @@ A estimativa de custo de API proposta para M9 aplica, a cada categoria de tokens
 Para M14, registrar os tokens de entrada, saída, raciocínio e cache (leitura e escrita), separadamente e como informados por cada harness, com a fonte do dado. As ferramentas não usam a mesma semântica. No Codex, por exemplo, os tokens em cache fazem parte da entrada, enquanto no Claude Code são contados à parte. A contagem de raciocínio pode não ser exposta. Por isso, somas entre categorias e comparações diretas de tokens entre harnesses exigem normalização documentada. Categoria não informada fica ausente, não zero. Chamadas feitas por subagentes ou modelos auxiliares devem ser incluídas quando o harness as reportar e declaradas como limitação quando não reportar.
 
 Para M15, extrair o perfil da stack dos manifestos e arquivos da entrega congelada: arquivos de dependências, Dockerfile, instruções. Os dados são nominais: linguagem, framework e persistência como categorias; dependências diretas como lista com versões. A contagem de dependências pode aparecer como diagnóstico, sem ser tratada como qualidade. Se a stack declarada nas instruções divergir da observada nos arquivos, registrar a divergência. A análise de M15 descreve escolhas e ajuda a interpretar as demais medidas, conforme a proposta (§8): diferenças de tamanho ou estrutura entre linguagens não são interpretadas automaticamente como diferenças de qualidade.
+
+Perfil de M16 adotado em 24/09/2026: ver `rnf11_perfil_carga` em `evaluator/config.json` e a [documentação do diagnóstico](avaliador.md), §10. Em resumo:
+
+- `DATA_DIR` em disco;
+- `GET /{code}` e `POST /api/links` em duas fases: taxa fixa com latência contada do instante agendado, e concorrência 32 como saturação;
+- p50 a p99.9 e máximo;
+- CPU e memória do servidor;
+- três medições por entrega, que estimam a variação do instrumento.
 
 Para M16, medir somente entregas que o avaliador conseguir iniciar sem reparo (M6), no mesmo hardware, com limites de CPU e memória fixos e com a mesma persistência exigida pelo contrato. O perfil de carga define aquecimento, concorrência, duração ou número de requisições, dados iniciais e operações medidas; ele será congelado antes da coleta. Reportar percentis de latência por operação, como p50, p95 e p99, junto da taxa de erros e de respostas fora do contrato durante a medição. Latência de respostas incorretas não é tratada como desempenho válido. Entregas não iniciadas ficam sem M16, o que é registrado como ausência, sem valor atribuído. Repetições da medição sobre a mesma entrega estimam a variação do instrumento e não são novas tentativas do agente.
 

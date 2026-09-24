@@ -161,6 +161,91 @@ print(json.dumps(r))
 '''
 
 
+RESOURCES = r'''
+import json, os, subprocess
+cg = "/sys/fs/cgroup"
+def read(name):
+    try:
+        return open(os.path.join(cg, name)).read().strip()
+    except OSError:
+        return None
+def kv(name, keys=None):
+    text = read(name)
+    if text is None:
+        return None
+    out = {}
+    for line in text.splitlines():
+        parts = line.split()
+        if len(parts) == 2 and (keys is None or parts[0] in keys):
+            out[parts[0]] = int(parts[1]) if parts[1].isdigit() else parts[1]
+    return out
+def num(name):
+    v = read(name)
+    return int(v) if v and v.isdigit() else v
+io = {}
+for line in (read("io.stat") or "").splitlines():
+    for field in line.split()[1:]:
+        k, _, v = field.partition("=")
+        if k in ("rbytes", "wbytes", "rios", "wios") and v.isdigit():
+            io[k] = io.get(k, 0) + int(v)
+sizes = {}
+for root in ("/workspace", "/home/agent", "/tmp"):
+    r = subprocess.run(["du", "-sb", root], capture_output=True, text=True)
+    sizes[root] = int(r.stdout.split()[0]) if r.returncode == 0 and r.stdout else None
+print(json.dumps({
+    "memory_peak_bytes": num("memory.peak"), "memory_current_bytes": num("memory.current"),
+    "memory_max": read("memory.max"),
+    "memory_stat": kv("memory.stat", {"anon", "file", "shmem", "kernel", "sock"}),
+    "memory_events": kv("memory.events"),
+    "cpu_stat": kv("cpu.stat", {"usage_usec", "user_usec", "system_usec", "nr_periods", "nr_throttled", "throttled_usec"}),
+    "pids_peak": num("pids.peak"), "io": io, "disk_usage_bytes": sizes,
+    "nota": "cgroup do container inteiro (harness, ferramentas e processos do agente). memory.peak inclui tmpfs (shmem) e cache de arquivos.",
+}))
+'''
+
+
+def activity(harness, events):
+    """Contagem de ações do agente segundo os eventos do harness; None quando não observável."""
+    events = [e for e in events if isinstance(e, dict)]
+    tools = {}
+
+    def count(name):
+        tools[name] = tools.get(name, 0) + 1
+
+    if harness == "claude":
+        for e in events:
+            if e.get("type") == "assistant" and isinstance(e.get("message"), dict):
+                for block in e["message"].get("content") or []:
+                    if isinstance(block, dict) and block.get("type") == "tool_use":
+                        count(str(block.get("name")))
+        result = next((e for e in reversed(events) if e.get("type") == "result"), {})
+        extra = {"num_turns": result.get("num_turns"), "duration_ms": result.get("duration_ms"),
+                 "duration_api_ms": result.get("duration_api_ms"), "permission_denials": len(result.get("permission_denials") or [])}
+    elif harness == "opencode":
+        errors = 0
+        for e in events:
+            part = e.get("part") if isinstance(e.get("part"), dict) else {}
+            if e.get("type") == "tool_use":
+                count(str(part.get("tool")))
+                if (part.get("state") or {}).get("status") == "error":
+                    errors += 1
+        extra = {"steps": sum(1 for e in events if e.get("type") == "step_finish"), "tool_errors": errors}
+    elif harness == "codex":
+        failed = 0
+        for e in events:
+            item = e.get("item") if isinstance(e.get("item"), dict) else {}
+            if e.get("type") == "item.completed" and item.get("type") not in (None, "agent_message", "reasoning"):
+                count(str(item.get("type")))
+                if item.get("type") == "command_execution" and item.get("exit_code") not in (0, None):
+                    failed += 1
+        extra = {"agent_messages": sum(1 for e in events if e.get("type") == "item.completed"
+                                       and (e.get("item") or {}).get("type") == "agent_message"),
+                 "commands_nonzero_exit": failed}
+    else:
+        return None
+    return {"tool_calls": sum(tools.values()), "by_tool": dict(sorted(tools.items())), **extra}
+
+
 def walk_reported(events):
     reported, variants, sessions = set(), set(), set()
 
@@ -302,13 +387,17 @@ def main():
                "effort": p["effort"], "timeout_seconds": args.timeout, "kill_after_seconds": cfg["kill_after_seconds"]["value"],
                "resources": {k: v for k, v in res.items() if k not in ("status", "nota")},
                "config": str(config_path.relative_to(ROOT)) if config_path.is_relative_to(ROOT) else str(config_path),
-               "config_sha256": sha256(config_path.read_bytes()), "skills": [], "allowed_hosts": hosts, "official_collection": False, "phase": "piloto",
+               "config_sha256": sha256(config_path.read_bytes()), "runner_sha256": sha256(Path(__file__).read_bytes()), "skills": [], "allowed_hosts": hosts, "official_collection": False, "phase": "piloto",
                "prompt": prompt_meta, "started_at_utc": pilot.utc_now(), "errors": [], "warnings": []}
     started = time.monotonic()
     stdout = stderr = ""
     try:
         info = json.loads(docker("image", "inspect", cfg["image"]).stdout)[0]
         summary["image_id"] = info["Id"]
+        # Com o armazenamento containerd, o ID é o digest do índice OCI, que muda a cada build por causa
+        # da atestação de proveniência; o conteúdo é identificado pelas camadas e pela configuração.
+        summary["image_rootfs_sha256"] = sha256(json.dumps(info["RootFS"]["Layers"]))
+        summary["image_created"] = info.get("Created")
         docker("network", "create", "--internal", net)
         hardening = ["--init", "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges"]
         docker("run", "-d", "--name", proxy, *hardening, "--pids-limit", "256", "--memory", "256m", "--cpus", "1",
@@ -363,6 +452,15 @@ def main():
         (out / "stderr.txt").write_text(redact(stderr))
 
         # Encerra processos deixados pelo agente antes de congelar, para um snapshot estável.
+        # Recursos do container da tentativa, antes de encerrar os processos remanescentes.
+        res_probe = docker("exec", agent, "python3", "-c", RESOURCES, check=False, timeout=120)
+        try:
+            summary["resources_observed"] = json.loads(res_probe.stdout)
+        except ValueError:
+            summary["resources_observed"] = {"error": (res_probe.stderr or "")[-300:]}
+        oom = ((summary["resources_observed"] or {}).get("memory_events") or {}).get("oom_kill")
+        if oom:
+            summary["warnings"].append(f"o limite de memória matou {oom} processo(s) durante a tentativa (oom_kill)")
         sweep = docker("exec", "-i", agent, "python3", "-", "sweep", input=HELPER.read_text(), check=False)
         summary["leftover_processes"] = json.loads(sweep.stdout).get("swept") if sweep.returncode == 0 else sweep.stderr[-300:]
 
@@ -432,6 +530,7 @@ def main():
             if not summary["session_exported"]:
                 summary["warnings"].append("sessão do OpenCode não exportada; modelo e variante servidos sem registro: "
                                            + str(summary["session_export"].get("error")))
+        summary["activity"] = activity(p["harness"], events) if command else None
         summary["reported_models"] = sorted(reported)
         summary["reported_variants"] = sorted(variants)
         try:

@@ -372,3 +372,62 @@ A concorrência 8 fica entre as duas linhas em todos os casos. Os valores comple
 - **Máximo e p99.9.** Registrar os dois. O p99 escondeu a cauda de 1 s do Muse, que só aparece no máximo.
 - **Carga aberta.** Uma carga com taxa fixa, abaixo da saturação da entrega mais lenta, mediria latência sem saturar. Os números acima são de malha fechada.
 
+### 8.1 Perfil adotado (versão 0.2): `DATA_DIR` em disco
+
+Medido em 24/09/2026, das 20:55Z às 21:21Z, com o perfil que Rafael adotou ([avaliador](avaliador.md), §10). Foram três rodadas intercaladas por entrega, 15 medições no total. Todas ficaram completas, sem resposta fora do contrato, com a contagem de visitas batendo, e sem sobras (containers, rede ou volume). O atraso de envio do cliente ficou abaixo de 0,02 ms no p99, então a latência da fase aberta é praticamente o tempo de serviço. Os números abaixo **substituem os da tabela anterior (versão 0.1, tmpfs)** para comparar entregas.
+
+Mediana das três rodadas; latência em ms. "Normal" é a fase aberta, com 500 req/s. "Máx. req/s" é a vazão na fase fechada, com 32 conexões simultâneas.
+
+| Entrega | GET normal p50 / p99 | POST normal p50 / p99 | GET c=32 p99 (máx.) | POST c=32 p99 (máx.) | Máx. req/s GET / POST | Pico de RSS |
+|---|---|---|---|---|---|---|
+| Referência (Python + SQLite) | 0,89 / 1,28 | **41,1** / 43,1 | 32 (63) | 45 (59) | 1.190 / 760 | 25 MiB |
+| Muse (Python + SQLite, HTTP/1.0) | 1,50 / 5,58 | 1,57 / 5,64 | 47 (88) | 46 (89) | 760 / 740 | 27 MiB |
+| Opus (Go, log em arquivo) | **0,04** / 0,08 | **0,05** / 0,12 | 0,56 (4,6) | 1,56 (8,4) | **192 mil / 111 mil** | 317 MiB* |
+| Sol (Python + SQLite, keep-alive) | 1,32 / 1,93 | **42,3** / 43,3 | **530 (3.231)** | 96 (171) | 1.440 / 736 | 31 MiB |
+| Astra (Python + SQLite, `Connection: close`) | 1,51 / 4,80 | 1,62 / 5,33 | **430 (2.130)** | **530 (2.031)** | 1.260 / 1.180 | 28 MiB |
+
+\* O Opus guarda os links em memória e, por ser rápido, atendeu 300 mil requisições em cada fase fechada, o teto do perfil, contra 7 a 17 mil das outras. A memória e o `DATA_DIR` dele (94 MiB, contra 3 a 4 MiB) refletem esse volume maior de dados. A comparação de memória não é direta.
+
+**Leitura:**
+
+- **Disco muda o quadro das entregas em Python.** Com `fsync` a cada gravação (`synchronous=FULL`), o GET normal foi de 0,2–0,4 ms em tmpfs para 1,3–1,5 ms, porque cada redirecionamento grava uma visita. A vazão do GET com 32 conexões caiu de 3.500–7.700 req/s para 760–1.440 req/s. O Opus não faz `fsync` por gravação e quase não mudou: 0,04 ms e ~190 mil req/s.
+- **O atraso de 41 ms no POST de Sol e referência continua,** com ou sem disco. A causa é da camada HTTP, não da persistência.
+- **Cauda sob saturação:** com 32 conexões, Sol e Astra têm p99 de 430 a 530 ms e máximos de 2 a 3 s. Muse e referência ficam abaixo de 100 ms, apesar da vazão parecida ou menor. A diferença está em como cada servidor distribui a espera entre as conexões. A causa não foi determinada.
+- **CPU por requisição (fase aberta):** Opus 0,03–0,04 ms; referência 0,13–0,22 ms; Sol 0,35–0,44 ms; Muse e Astra 0,46–0,55 ms.
+- **Estabilidade:** p50 e vazão variaram menos de 2% entre as rodadas, exceto os máximos, que são eventos isolados. Três medições bastam para o instrumento.
+
+## 9. Decisões de Rafael depois do piloto (24/09/2026)
+
+| Tema | Decisão | Onde está |
+|---|---|---|
+| Prazo por tentativa | 1800 s, três vezes a entrega aceita mais lenta (602 s) | `infra/attempt/config.json` |
+| Dados por tentativa | Coletar todos os dados disponíveis: recursos do container, atividade do agente e rastreabilidade do runner e da imagem | [runner](../infra/attempt/README.md), §3 |
+| Desempenho da API | Q9 adotada; foco de qualidade ampliado; perfil de carga de M16 adotado, com `DATA_DIR` em disco | [GQM](gqm.md), [avaliador](avaliador.md) §10 |
+| Binários dos harnesses | Salvos em disco com hash; o build da imagem da coleta só aceita os binários do manifesto | [runtime](../infra/runtime/README.md) |
+| Paridade entre harnesses | Documentar as diferenças observadas, sem corrigi-las | [runner](../infra/attempt/README.md), §5 |
+| Aceitação | Não precisa distinguir as configurações: espera-se que modelos de fronteira passem | [GQM](gqm.md), §4 |
+| Repetições | Uma tentativa por configuração na coleta oficial; Q6 e M11 ficam sem dados | [GQM](gqm.md), §4 |
+| Cota | As tentativas não chegaram perto do limite da sessão | — |
+
+Continuam pendentes:
+
+- como classificar o término por limite de saída (§3.1);
+- os demais parâmetros `[A DEFINIR]` do contrato. Os valores do avaliador (prontidão 60 s, expiração 4 s, n/m/p 50/20/50, SIGTERM 10 s) funcionaram nas cinco entregas avaliadas, mas o contrato não foi alterado;
+- a ordem das execuções na coleta.
+
+**Mudanças no instrumento depois das decisões:**
+
+- **Runner:**
+  - prazo de 1800 s;
+  - `resources_observed` (cgroup do container da tentativa) e `activity` (chamadas de ferramenta por tipo);
+  - `runner_sha256`, `image_rootfs_sha256` e `image_created`.
+  
+  Validado com o `simulado` (35 S) e com os `stdout.jsonl` das tentativas reais.
+- **Imagem:**
+  - binários salvos em `.pilot/harness-bin/`, com o manifesto `infra/runtime/harnesses.json`;
+  - reconstrução só a partir deles;
+  - imagem exportada com `docker save`.
+  
+  O novo ID, `sha256:f5e1796e3908…`, tem o mesmo conteúdo em cache da `838a…`: o ID mudou só pela atestação de proveniência do containerd.
+- **Latência 0.2:** fase aberta com taxa fixa, fase fechada com teto, p99.9, tempo de serviço e atraso de envio, CPU e memória do servidor, e `DATA_DIR` em disco. Resultados na §8.
+

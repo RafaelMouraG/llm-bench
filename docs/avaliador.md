@@ -258,7 +258,7 @@ Continuam em aberto:
 
 ## 10. Diagnóstico de latência (RNF11, M16)
 
-Acrescentado em 24/09/2026, a pedido de Rafael. `evaluator/latency.py` mede o tempo de resposta de uma entrega congelada. **Não é aceitação:** não produz veredito, não altera `A_i` e não muda `evaluate.py`. Os resultados do piloto estão no [registro](piloto-tarefa-real.md), §8.
+Acrescentado em 24/09/2026, a pedido de Rafael. Versão 0.2, com o perfil de carga que Rafael adotou no mesmo dia, junto com a Q9 da [GQM](gqm.md). `evaluator/latency.py` mede o tempo de resposta de uma entrega congelada. **Não é aceitação:** não produz veredito, não altera `A_i` e não muda `evaluate.py`. Os resultados estão no [registro do piloto](piloto-tarefa-real.md), §8.
 
 ```sh
 python3 evaluator/latency.py evaluator/reference --label referencia
@@ -267,32 +267,43 @@ python3 evaluator/latency.py .pilot/attempts/<run_id>/delivery.tar --label <nome
 
 **Fluxo.**
 
-1. **Ambiente e build.** Mesmo ambiente limpo do avaliador, reaproveitando `Run` de `evaluate.py`: container novo, build com rede só para os registros, servidor sem rede e `DATA_DIR` em tmpfs. Containers e rede usam o prefixo `llmbench-lat-` e são removidos ao final.
-2. **CPUs separadas.** O servidor fica em `app_cpuset`, e o cliente em `client_cpuset`.
-3. **Pré-condição.** Entrega que não compila ou não fica pronta fica **sem M16**, registrada como ausente e sem valor, como pede a GQM.
-4. **Sementes.** Cria `seed_links` links antes de medir.
-5. **Medição.** Para `GET /{code}`, sobre os links semeados, e para `POST /api/links`, sem alias, em cada nível de `concurrency`: aquecimento descartado e número fixo de requisições em malha fechada.
-6. **Validação e estatísticas.** Cada resposta é validada contra o contrato: 302 com `Location` igual à `url`, ou 201 com objeto JSON e `code`. Os percentis (p50, p90, p95, p99 e máximo) usam só as respostas válidas. Respostas fora do contrato e erros de transporte entram na taxa de erro.
-7. **Sanidade.** A soma de `visits` dos links semeados deve ser igual ao número de 302 válidos, aquecimento incluído. Isso confirma que a carga chegou ao servidor e foi contada (RNF06).
+1. **Ambiente e build.** O mesmo ambiente limpo do avaliador, reaproveitando `Run` de `evaluate.py`: container novo, build com rede só para os registros e servidor sem rede. Containers, rede e volume usam o prefixo `llmbench-lat-` e são removidos ao final.
+2. **`DATA_DIR` em disco:** um volume Docker no SSD do host (`/var/lib/docker`, ext4 em NVMe). Um container de uso único, sem rede e só com a capability `CHOWN`, entrega o volume ao UID 1001. Com `data_dir: "tmpfs"`, repete o ambiente do avaliador.
+3. **CPUs separadas.** O servidor fica em `app_cpuset`, e o cliente em `client_cpuset`.
+4. **Pré-condição.** Entrega que não compila ou não fica pronta fica **sem M16**, registrada como ausente e sem valor, como pede a GQM.
+5. **Sementes.** Cria `seed_links` links antes de medir.
+6. **Medição.** Para `GET /{code}` e depois para `POST /api/links`, duas fases por duração, cada uma com aquecimento descartado:
+   - **Aberta (taxa fixa):** a requisição *i* é agendada para t₀ + i/R. A latência é contada do instante agendado, então a fila no servidor entra na medida (sem *coordinated omission*). O resultado também traz o tempo de serviço, contado do envio real, e o atraso de envio do cliente, para separar os dois efeitos.
+   - **Fechada (saturação):** concorrência fixa, com teto de requisições medidas, para limitar o crescimento de `DATA_DIR` e da memória em servidores rápidos.
+7. **Validação e estatísticas.** Cada resposta é validada contra o contrato: 302 com `Location` igual à `url`, ou 201 com objeto JSON e `code`. Os percentis (p50, p90, p95, p99, p99.9 e máximo) usam só as respostas válidas. Respostas fora do contrato e erros de transporte entram na taxa de erro.
+8. **Recursos do servidor.**
+   - **CPU:** a do cgroup do container da entrega, medida a cada fase, em ms por requisição válida.
+   - **Memória:** o pico de RSS (VmHWM) dos processos do servidor. O pico do cgroup não serve: inclui o build e não pode ser zerado.
+   - **Disco:** o tamanho de `DATA_DIR` ao final.
+9. **Sanidade.** A soma de `visits` dos links semeados deve ser igual ao número de 302 válidos, aquecimento incluído. Isso confirma que a carga chegou ao servidor e foi contada (RNF06).
 
-**Gerador de carga.** `evaluator/loadgen/main.go`, em Go e só com a biblioteca padrão, compilado dentro da imagem, sem rede, e guardado em `.pilot/latency/bin/`. Um cliente em Python seria mais lento que um servidor em Go e mediria a si mesmo. O cliente reusa conexões quando o servidor permite (keep-alive) e não segue redirecionamentos.
+**Gerador de carga.** `evaluator/loadgen/main.go`, em Go e só com a biblioteca padrão, compilado dentro da imagem, sem rede, e guardado em `.pilot/latency/bin/`. Um cliente em Python seria mais lento que um servidor em Go e mediria a si mesmo.
 
-**Parâmetros.** Estão em `evaluator/config.json`, seção `rnf11_perfil_carga`, todos "provisório — decidir":
+- **Conexões:** reusa conexões quando o servidor permite (keep-alive) e não segue redirecionamentos.
+- **Agendador:** dorme até 2 ms antes do instante agendado e espera ativamente o resto. Com isso, o atraso de envio fica em cerca de 3 a 8 µs, contra ~0,3 ms só com `time.Sleep`.
+
+**Parâmetros.** Estão em `evaluator/config.json`, seção `rnf11_perfil_carga`. O perfil foi adotado; os valores numéricos ainda podem ser revistos.
 
 | Parâmetro | Valor |
 |---|---|
 | Sementes | 1.000 links |
-| Concorrência | 1, 8 e 32 |
-| `GET /{code}` | 1.000 de aquecimento e 10.000 medidas por nível |
-| `POST /api/links` | 500 de aquecimento e 5.000 medidas por nível |
-| CPUs | servidor em 2–3 (2 CPUs, 4 GiB); cliente em 8–11 |
+| Fase aberta | 500 req/s; 5 s de aquecimento e 30 s de medição; até 256 requisições em voo |
+| Fase fechada | concorrência 32; 2 s de aquecimento e 10 s de medição; teto de 300.000 requisições medidas |
+| `DATA_DIR` | disco (volume Docker) |
+| CPUs | servidor em 2–3 (2 CPUs, 4 GiB); cliente em 8–11 (4 CPUs) |
 | Tempo limite | 10 s por requisição |
+| Repetições | três medições por entrega, que estimam a variação do instrumento |
 
 **Limitações.**
 
-- **`DATA_DIR` em tmpfs:** `fsync` quase não custa, então a latência de escrita não representa disco. Diferenças de durabilidade entre entregas, como `fsync` por gravação ou só no encerramento, ficam invisíveis.
-- **Malha fechada:** sob saturação, subestima a cauda (*coordinated omission*). A vazão reportada é a de saturação daquele nível.
-- **Contagem fixa de requisições:** em servidores rápidos, a janela de medição fica curta, 40–200 ms no piloto, mais sujeita a transientes. Um perfil por duração seria mais robusto.
-- **Limite do cliente:** a vazão acima de cerca de 100 mil req/s pode estar limitada pelo cliente. Nesses níveis, é um limite inferior.
+- **Disco:** a latência de escrita depende do SSD e da carga do host. O mesmo hardware vale para todas as entregas, mas não representa outro ambiente.
+- **Fase fechada:** mede a saturação daquele nível, não a latência sob a mesma carga. Em servidores rápidos, o teto encurta a janela; no Opus, 300 mil requisições em cerca de 1,6 a 3 s.
+- **Taxa de 500 req/s:** fica abaixo da capacidade de todas as entregas do piloto em tmpfs. Em disco, uma entrega mais lenta pode não sustentá-la; o sinal disso é a fila, que aparece na diferença entre latência e tempo de serviço.
+- **Memória:** o pico de RSS cresce com o volume de dados que a carga cria. Nos servidores que guardam o estado em memória, como o do Opus, ele depende do perfil.
 - **Rede:** cliente e servidor ficam no mesmo host, numa rede bridge interna. A latência não inclui rede real.
-
+- **Versão 0.1:** os resultados com `DATA_DIR` em tmpfs e contagem fixa de requisições ficam no registro do piloto como histórico. Não são comparáveis aos da versão 0.2.

@@ -7,12 +7,23 @@ Imagem única para as tentativas e para o avaliador, escolhida por Rafael em 24/
 Na raiz do repositório:
 
 ```sh
-python3 scripts/build-pilot.py --dockerfile infra/runtime/Dockerfile --image llm-bench-runtime:20260924
+python3 scripts/save-harness-binaries.py            # binários fixos em .pilot/harness-bin, conferidos pelo manifesto
+python3 scripts/build-pilot.py --dockerfile infra/runtime/Dockerfile --image llm-bench-runtime:20260924 \
+    --harness-dir .pilot/harness-bin
 python3 scripts/check-runtime-image.py
 bash scripts/check-isolation-baseline.sh llm-bench-runtime:20260924
 ```
 
 O build registra em `.pilot/images/llm-bench-runtime_20260924.json`, arquivo ignorado pelo Git, o ID da imagem, o hash do Dockerfile e os hashes dos binários dos harnesses.
+
+**Binários fixos (decisão de Rafael de 24/09/2026).** O build da imagem da coleta não copia mais os harnesses do host, que se atualizam sozinhos.
+
+- **Manifesto:** `infra/runtime/harnesses.json`, versionado, fixa versão, SHA-256 e tamanho de `claude` 2.1.281, `codex` 0.156.1, `codex-code-mode-host` e `opencode` 1.18.32.
+- **Binários:** ficam em `.pilot/harness-bin/`. `scripts/save-harness-binaries.py` os extrai da imagem validada e confere os hashes. Como as imagens Docker são globais no host, o script recria o diretório em qualquer checkout.
+- **Build:** `build-pilot.py` recusa construir a imagem da coleta sem `--harness-dir` e recusa binário com hash diferente do manifesto.
+- **Exportação:** `save-harness-binaries.py --save-image` exporta a imagem com `docker save`, em gzip, para `.pilot/images/`, com o SHA-256 ao lado. Isso preserva a imagem inteira, inclusive os pacotes Debian, que um novo build poderia trocar. Exportada em 24/09/2026: `llm-bench-runtime_20260924-f5e1796e3908.tar.gz`, com 0,77 GB.
+
+**ID da imagem.** Com o armazenamento containerd do Docker 29, o ID é o digest do índice OCI, que inclui uma atestação de proveniência gerada a cada build. Um build com todas as camadas em cache produziu o ID `sha256:f5e1796e3908…`, contra `838a7837a0ec…` antes, com a mesma data de configuração (19:35:40Z) e os mesmos binários. O conteúdo é identificado pelas camadas: o runner registra `image_rootfs_sha256`. A imagem `838a…`, usada na repetição do Sol e no Astra, foi descartada pelo Docker ao perder a tag. Pelo cache, o conteúdo dela é o mesmo da `f5e1…`, mas isso não pode mais ser conferido diretamente.
 
 ## Conteúdo
 
