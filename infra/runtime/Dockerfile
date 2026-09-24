@@ -42,7 +42,7 @@ ENV JAVA_HOME=/opt/java \
 
 RUN useradd --create-home --uid 1001 --shell /bin/bash agent \
     && mkdir /workspace && chown agent:agent /workspace
-COPY --chmod=755 claude codex opencode /usr/local/bin/
+COPY --chmod=755 claude codex codex-code-mode-host opencode /usr/local/bin/
 COPY proxy.py /opt/pilot/proxy.py
 USER agent
 WORKDIR /workspace

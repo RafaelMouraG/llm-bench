@@ -33,6 +33,16 @@ def main():
             with source.open('rb') as stream:
                 digest = hashlib.file_digest(stream, 'sha256').hexdigest()
             manifest[name] = {'sha256': digest, 'bytes': source.stat().st_size}
+            if name == 'codex':
+                # O Codex executa as ferramentas por um auxiliar que fica na mesma pasta de release;
+                # sem ele, nenhuma chamada de ferramenta roda (tentativa 20260924T192934Z-sol-9d4b81).
+                helper = source.parent/'codex-code-mode-host'
+                if not helper.is_file():
+                    raise SystemExit(f'Auxiliar do Codex ausente: {helper}')
+                shutil.copy2(helper, stage/helper.name)
+                with helper.open('rb') as stream:
+                    digest = hashlib.file_digest(stream, 'sha256').hexdigest()
+                manifest[helper.name] = {'sha256': digest, 'bytes': helper.stat().st_size}
         shutil.copy2(dockerfile, stage/'Dockerfile')
         shutil.copy2(root/'infra/pilot/proxy.py', stage/'proxy.py')
         subprocess.run(['docker', 'build', '--tag', args.image, str(stage)], check=True)
