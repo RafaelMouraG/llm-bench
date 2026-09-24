@@ -21,6 +21,7 @@ import json
 import secrets
 import subprocess
 import sys
+import tarfile
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -180,6 +181,76 @@ def walk_reported(events):
     return reported, variants, sessions, walk
 
 
+SESSION_EXPORT_PATH = "/tmp/llmbench-session-export.json"
+
+
+def export_opencode_session(agent, session_id):
+    """Exporta a sessão do OpenCode para um arquivo no container e o lê de volta.
+
+    Não usar o stdout do export diretamente: no OpenCode 1.18.32, a saída escrita num
+    pipe (como a do docker exec) é truncada em 128 KiB, com código 0, e o JSON de uma
+    sessão real fica inválido. Escrita num arquivo, sai completa. Devolve (sessão ou
+    None, metadados do export).
+    """
+    meta = {"session_id": session_id, "method": "arquivo no container, lido com cat"}
+    try:
+        r = docker("exec", agent, "sh", "-c", 'opencode --pure export "$1" > "$2"', "sh", session_id,
+                   SESSION_EXPORT_PATH, check=False, timeout=120)
+        meta["exit_code"], meta["stderr"] = r.returncode, r.stderr.strip()[-500:] or None
+        c = docker("exec", agent, "cat", SESSION_EXPORT_PATH, check=False, timeout=120, binary=True)
+    except subprocess.TimeoutExpired as e:
+        meta.update(ok=False, error=f"export sem resposta em {e.timeout} s")
+        return None, meta
+    text = c.stdout.decode(errors="replace") if c.returncode == 0 else ""
+    meta["bytes"] = len(c.stdout) if c.returncode == 0 else None
+    try:
+        session = json.loads(text)
+    except ValueError as e:
+        meta.update(ok=False, error=f"JSON inválido: {e}"[:200], head=text[:200] or None)
+        return None, meta
+    meta["ok"] = True
+    return session, meta
+
+
+def harness_end(harness, events):
+    """Como o harness terminou, segundo os próprios eventos; None quando não observável.
+
+    output_limit_hit indica término por limite de saída do modelo: 'length' no último
+    step_finish do OpenCode, 'max_tokens' no Claude Code. No Codex, o formato não foi
+    validado em tentativa real e o campo fica None.
+    """
+    events = [e for e in events if isinstance(e, dict)]
+    if harness == "opencode":
+        steps = [e["part"] for e in events if e.get("type") == "step_finish" and isinstance(e.get("part"), dict)]
+        if not steps:
+            return None
+        reasons = {}
+        for part in steps:
+            reasons[str(part.get("reason"))] = reasons.get(str(part.get("reason")), 0) + 1
+        last = steps[-1].get("reason")
+        return {"source": "opencode json: reason dos eventos step_finish", "last_reason": last,
+                "reasons": reasons, "steps": len(steps), "output_limit_hit": last == "length"}
+    if harness == "claude":
+        results = [e for e in events if e.get("type") == "result"]
+        assistant = [e["message"] for e in events if e.get("type") == "assistant" and isinstance(e.get("message"), dict)]
+        if not results and not assistant:
+            return None
+        result = results[-1] if results else {}
+        last_stop = assistant[-1].get("stop_reason") if assistant else None
+        stop = result.get("stop_reason")
+        return {"source": "claude stream-json: último result e stop_reason da última mensagem do assistente",
+                "result_subtype": result.get("subtype"), "is_error": result.get("is_error"), "stop_reason": stop,
+                "last_assistant_stop_reason": last_stop, "output_limit_hit": "max_tokens" in (stop, last_stop)}
+    if harness == "codex":
+        if not events:
+            return None
+        types = [e.get("type") for e in events]
+        return {"source": "codex exec --json: tipos de evento (formato não validado em tentativa real)",
+                "last_event_type": types[-1], "turns_completed": types.count("turn.completed"),
+                "turns_failed": types.count("turn.failed"), "errors": types.count("error"), "output_limit_hit": None}
+    return None
+
+
 def main():
     pre = argparse.ArgumentParser(add_help=False)
     pre.add_argument("--config", default=str(CONFIG))
@@ -228,7 +299,7 @@ def main():
                "resources": {k: v for k, v in res.items() if k not in ("status", "nota")},
                "config": str(config_path.relative_to(ROOT)) if config_path.is_relative_to(ROOT) else str(config_path),
                "config_sha256": sha256(config_path.read_bytes()), "skills": [], "allowed_hosts": hosts, "official_collection": False, "phase": "piloto",
-               "prompt": prompt_meta, "started_at_utc": pilot.utc_now(), "errors": []}
+               "prompt": prompt_meta, "started_at_utc": pilot.utc_now(), "errors": [], "warnings": []}
     started = time.monotonic()
     stdout = stderr = ""
     try:
@@ -299,21 +370,38 @@ def main():
         tar_path.write_bytes(frozen.stdout)
         tar_path.chmod(0o600)
         _, tree, entries, deps = evaluate.pack_delivery(tar_path)
+        with tarfile.open(tar_path) as frozen_tar:
+            files = sum(1 for m in frozen_tar.getmembers() if m.isfile())
         leaked = [v for v in redact_values if v.encode() in frozen.stdout]
+        if not files:
+            summary["warnings"].append("entrega sem arquivos: /workspace vazio no congelamento")
         summary["delivery"] = {"tar": "delivery.tar", "tar_sha256": sha256(frozen.stdout), "bytes": len(frozen.stdout),
-                               "tree_sha256": tree, "entries": entries, "tar_exit_code": frozen.returncode,
+                               "tree_sha256": tree, "entries": entries, "files": files, "tar_exit_code": frozen.returncode,
                                "tar_warnings": frozen.stderr.decode(errors="replace")[-500:] or None,
                                "dependencies": deps, "contains_credentials": bool(leaked)}
         if leaked:
             summary["errors"].append("a entrega contém valores de credencial; não compartilhar delivery.tar")
 
         # Evidências do harness.
-        events = []
-        for line in stdout.splitlines():
+        events, invalid = [], 0
+        lines = [line for line in stdout.splitlines() if line.strip()]
+        for line in lines:
             try:
                 events.append(json.loads(line))
             except ValueError:
-                pass
+                invalid += 1
+        summary["stdout_lines"] = {"total": len(lines), "not_json": invalid}
+        if command and p["harness"] != "shell" and lines:
+            try:
+                json.loads(lines[-1])
+            except ValueError:
+                summary["warnings"].append("a última linha do stdout do harness não é JSON; saída possivelmente truncada")
+        if command:
+            summary["harness_end"] = harness_end(p["harness"], events)
+            end = summary["harness_end"] or {}
+            if end.get("output_limit_hit"):
+                reason = end.get("last_reason") or end.get("stop_reason") or end.get("last_assistant_stop_reason")
+                summary["warnings"].append(f"o harness terminou depois de uma resposta interrompida pelo limite de saída do modelo ({reason})")
         reported, variants, sessions, walk = walk_reported(events)
         init = next((e for e in events if isinstance(e, dict) and e.get("type") == "system" and e.get("subtype") == "init"), None)
         if init:  # configuração efetiva anunciada pelo Claude Code; nomes de ferramenta inválidos são ignorados por ele
@@ -322,14 +410,24 @@ def main():
             requested = set(p.get("tools", "").split(","))
             if set(init.get("tools") or []) != requested:
                 summary["tools_mismatch"] = {"requested": sorted(requested), "effective": sorted(init.get("tools") or [])}
-        if p["harness"] == "opencode" and len(sessions) == 1:
-            exported = docker("exec", agent, "opencode", "--pure", "export", next(iter(sessions)), check=False, timeout=120)
-            try:
-                walk(json.loads(exported.stdout))
-                (out / "session.json").write_text(redact(exported.stdout))
-                summary["session_exported"] = True
-            except ValueError:
+        if p["harness"] == "opencode":
+            if len(sessions) == 1:
+                session, export_meta = export_opencode_session(agent, next(iter(sessions)))
+                if export_meta.get("stderr"):
+                    export_meta["stderr"] = redact(export_meta["stderr"])
+                if export_meta.get("head"):
+                    export_meta["head"] = redact(export_meta["head"])
+                summary["session_export"] = export_meta
+                summary["session_exported"] = session is not None
+                if session is not None:
+                    walk(session)
+                    (out / "session.json").write_text(redact(json.dumps(session, ensure_ascii=False)))
+            else:
                 summary["session_exported"] = False
+                summary["session_export"] = {"ok": False, "error": f"{len(sessions)} sessões no stdout; esperado 1"}
+            if not summary["session_exported"]:
+                summary["warnings"].append("sessão do OpenCode não exportada; modelo e variante servidos sem registro: "
+                                           + str(summary["session_export"].get("error")))
         summary["reported_models"] = sorted(reported)
         summary["reported_variants"] = sorted(variants)
         try:
@@ -369,8 +467,9 @@ def main():
     summary["ok"] = not summary["errors"] and not summary["cleanup"]["leftover"] and "delivery" in summary
     (out / "summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2) + "\n")
     brief = {k: summary.get(k) for k in ("run_id", "participant", "exit_code", "timed_out", "task_seconds", "evaluation",
-                                         "errors", "cleanup", "ok")}
-    brief["delivery"] = {k: summary.get("delivery", {}).get(k) for k in ("tree_sha256", "entries", "bytes", "contains_credentials")}
+                                         "errors", "warnings", "cleanup", "ok")}
+    brief["delivery"] = {k: summary.get("delivery", {}).get(k) for k in ("tree_sha256", "entries", "files", "bytes",
+                                                                         "contains_credentials")}
     print(json.dumps(brief, ensure_ascii=False, indent=2))
     print("Evidências locais:", out)
     return 0 if summary["ok"] else 1

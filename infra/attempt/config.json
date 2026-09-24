@@ -38,15 +38,6 @@
       "permission": {"*": "deny", "bash": "allow", "read": "allow", "edit": "allow", "glob": "allow", "grep": "allow", "list": "allow", "todowrite": "allow", "todoread": "allow"},
       "status": "provisório — decidir"
     },
-    "mimo": {
-      "harness": "opencode",
-      "model": "opencode/mimo-v2.6-flash-free",
-      "effort": null,
-      "provider_hosts": ["opencode.ai", "models.opencode.ai", "models.dev", "registry.npmjs.org"],
-      "permission": {"*": "deny", "bash": "allow", "read": "allow", "edit": "allow", "glob": "allow", "grep": "allow", "list": "allow", "todowrite": "allow", "todoread": "allow"},
-      "status": "provisório — decidir",
-      "nota": "Catálogo sem variantes de esforço"
-    },
     "sol": {
       "harness": "codex",
       "model": "gpt-6-sol",
