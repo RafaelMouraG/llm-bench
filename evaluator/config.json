@@ -1,0 +1,43 @@
+{
+  "_nota": "Único arquivo de parâmetros do avaliador. 'contrato' = valores [A DEFINIR] no contrato v0.1; 'operacional' = limites que o contrato não prevê e que o avaliador precisa ter. Nenhum valor aqui está congelado; o contrato não foi alterado.",
+  "image": "llm-bench-runtime:20260924",
+  "registries": [
+    "pypi.org",
+    "files.pythonhosted.org",
+    "registry.npmjs.org",
+    "proxy.golang.org",
+    "sum.golang.org",
+    "repo.maven.apache.org"
+  ],
+  "base_url": "http://encurtador.test:9090",
+  "contrato": {
+    "readiness_seconds": {"value": 60, "status": "provisório — calibrar", "onde": "A2, RNF02", "nota": "Inclui a partida da JVM; medir com entregas reais no piloto"},
+    "expiry_seconds": {"value": 4, "status": "provisório — calibrar", "onde": "RF09", "nota": "Expiração posta este número de segundos à frente, arredondada para cima ao segundo inteiro"},
+    "concurrency_n_visits": {"value": 50, "status": "provisório — calibrar", "onde": "RNF06"},
+    "concurrency_m_alias": {"value": 20, "status": "provisório — calibrar", "onde": "RNF07"},
+    "concurrency_p_codes": {"value": 50, "status": "provisório — calibrar", "onde": "RNF08"},
+    "sigterm_tolerance_seconds": {"value": 10, "status": "provisório — calibrar", "onde": "RNF10 (diagnóstico)", "nota": "Espera após SIGTERM antes do SIGKILL; o tempo medido só é registrado, sem veredito"}
+  },
+  "operacional": {
+    "build_timeout_seconds": {"value": 900, "status": "provisório — calibrar", "nota": "O contrato não define prazo para build.sh; estourar este limite deixa RNF01 como U"},
+    "request_timeout_seconds": {"value": 10, "status": "provisório — calibrar"},
+    "clock_tolerance_seconds": {"value": 10, "status": "provisório — calibrar", "nota": "Folga ao comparar created_at com o relógio do cliente"},
+    "expiry_margin_seconds": {"value": 1.5, "status": "provisório — calibrar", "nota": "Espera extra depois do instante de expiração antes de pedir o 410"},
+    "redirects_k": {"value": 3, "status": "provisório — calibrar", "onde": "RF05"},
+    "generated_code_samples": {"value": 20, "status": "provisório — calibrar", "onde": "RF02"},
+    "phase_timeout_seconds": {"value": 300, "status": "provisório — calibrar", "nota": "Limite de cada fase de checks no cliente"},
+    "resources": {
+      "app_memory": "4g",
+      "app_cpus": "2",
+      "app_pids": 512,
+      "client_memory": "1g",
+      "tmpfs_workspace": "1g",
+      "tmpfs_home": "1g",
+      "tmpfs_tmp": "512m",
+      "tmpfs_data": "256m",
+      "tmpfs_evaluator": "2g",
+      "status": "provisório — calibrar",
+      "nota": "Memória de tmpfs conta no limite do container; o snapshot pós-build fica em /evaluator"
+    }
+  }
+}
