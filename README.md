@@ -12,6 +12,7 @@ Proposta de pesquisa para comparar configurações completas de agentes de IA �
 - [Contrato candidato do encurtador](docs/contrato-encurtador.md): enunciado, requisitos com verificação e decisões pendentes. Documento privado; somente a Parte A se destina aos participantes.
 - [Piloto de infraestrutura](docs/piloto-infraestrutura.md): tentativas sintéticas nos containers, resultados por participante e pendências. O ambiente está em [infra/pilot](infra/pilot/README.md).
 - [Imagem multi-linguagem](infra/runtime/README.md): ambiente candidato da coleta, com Python, Node, Go e Java, e o resultado da validação.
+- [Avaliador do encurtador](docs/avaliador.md): verificação automatizada dos 35 requisitos de aceitação sobre uma entrega congelada, com implementação de referência e controles. Documento privado. O código está em `evaluator/`.
 
 O encurtador de URL é a tarefa candidata, com stack livre e contrato HTTP a definir. Identificadores foram encontrados em catálogos e fontes oficiais; as configurações finais e o acesso aos modelos dentro dos containers ainda precisam de validação antes da coleta.
 
@@ -19,4 +20,4 @@ O repositório central deverá permanecer privado durante a coleta. Participante
 
 ## Próxima etapa
 
-Concluir o piloto de infraestrutura: executar o Sol, que também valida a extração de tokens no formato do Codex. Gemini foi substituído por MiMo-V2.6-Flash Free. Em paralelo, refinar as subperguntas e definições operacionais da GQM e depois fechar o escopo e os critérios de avaliação.
+Concluir o piloto de infraestrutura: executar o Sol, que também valida a extração de tokens no formato do Codex. Gemini foi substituído por MiMo-V2.6-Flash Free. Em paralelo, refinar as subperguntas e definições operacionais da GQM e depois fechar o escopo e os critérios de avaliação. O avaliador está pronto em versão provisória; seus parâmetros `[A DEFINIR]` serão calibrados com entregas reais no piloto.

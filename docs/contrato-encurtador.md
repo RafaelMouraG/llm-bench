@@ -246,6 +246,7 @@ O contrato usa `build.sh` e `start.sh` executados em um container limpo da mesma
 |---|---|---|
 | Prazo por tentativa | Protocolo | Deve permitir a entrega do escopo acima; calibrar em piloto com a tarefa real, sem otimizar para uma configuração |
 | Rede no `build.sh` | A2, RNF01 | Proposto em A2: somente os registros de pacotes, a mesma lista da tentativa; aguarda confirmação |
+| Prazo do `build.sh` | A2, RNF01 | **Resolvido:** Rafael decidiu em 24/09/2026 que não há prazo. O avaliador usa só um teto operacional para não travar; estourá-lo deixa RNF01 inconclusivo (U), e não violado |
 | Prazo de prontidão | A2, RNF02 | Inclui o tempo de inicialização de runtimes como a JVM |
 | Tempo para a expiração nos testes | RF09 | Margem suficiente para evitar falha por latência do próprio teste |
 | n, m e p de concorrência | RNF06–RNF08 | Altos o bastante para expor condições de corrida, sem virar teste de carga |
@@ -254,18 +255,18 @@ O contrato usa `build.sh` e `start.sh` executados em um container limpo da mesma
 
 ### C4. Escolhas deste contrato
 
-Rafael confirmou em 24/09/2026 as cinco primeiras escolhas abaixo. A última, sobre o script público de testes de fumaça, continua em aberto.
+Rafael confirmou em 24/09/2026 as cinco primeiras escolhas abaixo e, no mesmo dia, decidiu a última: **o script público de testes de fumaça não será entregue**.
 
 - **Tamanho do código gerado, entre 6 e 12 caracteres alfanuméricos**, e limites do alias, entre 3 e 32 caracteres.
 - **Proibição de reutilizar o alias de um link excluído (RN09).** Evita que um link antigo passe a levar a outro destino, mas aumenta a complexidade.
 - **Redirecionamento com 302, e não 301.** Evita cache no cliente, que tornaria a contagem de visitas imprecisa.
 - **Status 422 para validação e 400 para JSON inválido.**
 - **Sem autenticação e sem listagem.** Reduzem o escopo, mas deixam de fora cenários comuns de robustez.
-- **Entrega de um script público de testes de fumaça aos participantes.** Ele ajudaria a reduzir falhas de formato, mas funcionaria como dica e mudaria o que M6 mede.
+- **Sem script público de testes de fumaça para os participantes.** Ele ajudaria a reduzir falhas de formato, mas funcionaria como dica e mudaria o que M6 mede.
 
 ### C5. Riscos de interpretação
 
 - **Datas e fusos (RF08, RN10):** são fonte conhecida de divergência. Os testes precisam aceitar qualquer representação RFC 3339 válida do mesmo instante.
 - **Comparação byte a byte do `Location` (RF04):** exige que o enunciado deixe claro que a URL não é normalizada. O enunciado já diz isso, mas vale conferir no piloto se os agentes interpretam da mesma forma.
 - **Relógio:** o avaliador e a entrega compartilham o relógio do host. Os testes de expiração devem usar margens, não instantes exatos.
-- **Dependências no build do avaliador:** o `build.sh` baixa as dependências de novo. Sem arquivo de lock, a versão resolvida pode diferir da que o agente testou. O contrato não exige lockfile. Resta decidir se isso vira requisito ou fica registrado como limitação, anotando se a entrega trazia lock.
+- **Dependências no build do avaliador:** o `build.sh` baixa as dependências de novo. Sem arquivo de lock, a versão resolvida pode diferir da que o agente testou. O contrato não exige lockfile. **Resolvido em 24/09/2026:** Rafael decidiu não tornar isso requisito. Fica como limitação, e o avaliador registra em diagnóstico os manifestos e lockfiles presentes na entrega.
