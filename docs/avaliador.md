@@ -1,6 +1,8 @@
 # Avaliador automatizado do encurtador
 
-Versão 0.1 — 24/09/2026. Documento de coordenação, privado: descreve os casos reservados da [Parte B do contrato](contrato-encurtador.md) e **não deve ser entregue aos participantes**. O avaliador verifica os 35 requisitos de classe A do contrato v0.1 sobre uma entrega congelada. Não está congelado: todos os parâmetros são provisórios, e o contrato não foi alterado.
+Versão 0.2 — 24/09/2026. Documento de coordenação, privado: descreve os casos reservados da [Parte B do contrato](contrato-encurtador.md) e **não deve ser entregue aos participantes**. O avaliador verifica os 35 requisitos de classe A do contrato v0.1 sobre uma entrega congelada. Não está congelado: os parâmetros continuam provisórios. As decisões de Rafael de 24/09/2026 estão na §9 e na Parte C do contrato; as Partes A e B do contrato não foram alteradas.
+
+Alterações da versão 0.2: interpretações da §8 confirmadas por Rafael; build sem prazo, com teto operacional de 3600 s; diagnóstico de manifestos e lockfiles; RF11 e RNF02 mantidos separados.
 
 O código está em `evaluator/`:
 
@@ -31,7 +33,7 @@ python3 evaluator/controls.py --only redirect-301 sem-health
 - **Saída:** por padrão, em `.pilot/eval/<run_id>/`, que o Git ignora. Contém `result.json`, `summary.txt`, `build.log`, `proxy.log` e `start-N.log`. Os controles gravam em `.pilot/eval/controls-<UTC>/`, com um `summary.json` consolidado.
 - **Código de saída:** 0 quando `A_i = 1`; 1 quando `A_i = 0`; 2 quando a avaliação fica inconclusiva por falha do avaliador ou por erro de uso.
 
-O `result.json` traz `counts` (S, V, U e N), `A_i`, `M3 = S/N` e, por requisito, veredito, resumo e evidência. A evidência mostra requisição e resposta resumidas, com até oito linhas truncadas. Traz também `diagnostics` (build, destinos no proxy, sondas de isolamento, tempos de SIGTERM, arquivos alterados fora de `DATA_DIR`, fixture) e `cleanup`.
+O `result.json` traz `counts` (S, V, U e N), `A_i`, `M3 = S/N` e, por requisito, veredito, resumo e evidência. A evidência mostra requisição e resposta resumidas, com até oito linhas truncadas. Traz também `diagnostics` (build, destinos no proxy, manifestos e lockfiles da entrega, sondas de isolamento, tempos de SIGTERM, arquivos alterados fora de `DATA_DIR`, fixture) e `cleanup`.
 
 ## 2. Fluxo
 
@@ -76,7 +78,7 @@ A avaliação da referência leva cerca de 8 s. Uma entrega que não fica pronta
 
 | ID | Exemplo | Check e condição de S | Acréscimos do avaliador |
 |---|---|---|---|
-| RNF01 | sim | `./build.sh` retorna 0. Um código ≠ 0 dá V (126: sem permissão de execução; 127: ausente). Estourar o limite operacional dá U | — |
+| RNF01 | sim | `./build.sh` retorna 0. Um código ≠ 0 dá V (126: sem permissão de execução; 127: ausente). O build não tem prazo; estourar o teto operacional dá U | — |
 | RNF02 | sim | `GET /health` responde 200 dentro do prazo, contado a partir do `docker exec` que inicia `start.sh`. Consulta a cada 0,2 s; se `start.sh` sai com código ≠ 0, o resultado é antecipado | — |
 | RNF03 | sim | Servidor pronto e todos os checks executados na rede interna, sem proxy, com as três sondas de saída bloqueadas. Sonda com rota externa dá U. **Nunca dá V** (§7) | Sondas de saída |
 | RNF04 | não | Com RNF09 = S: SIGTERM, restauração de `/workspace`, home, `/tmp` e `/dev/shm` ao estado pós-build, `DATA_DIR` mantido e novo início. A fixture segue igual à observada no início 2. Perda de estado dá V; snapshot ou restauração incompletos, ou servidor que não fica pronto, dão U. A lista de arquivos alterados fora de `DATA_DIR` é só diagnóstico | Teste comportamental no lugar do diff |
@@ -130,7 +132,7 @@ Fora da aceitação:
 
 ## 5. Parâmetros provisórios
 
-Todos estão em `evaluator/config.json`, marcados "provisório — calibrar". O contrato continua com `[A DEFINIR]`.
+Todos estão em `evaluator/config.json`, marcados "provisório — calibrar", exceto o teto do build, que é operacional. O contrato continua com `[A DEFINIR]`: Rafael confirmou que ainda não há valores.
 
 | Parâmetro | Valor | Origem | Observação |
 |---|---|---|---|
@@ -138,7 +140,7 @@ Todos estão em `evaluator/config.json`, marcados "provisório — calibrar". O 
 | Expiração em RF09 | 4 s | Contrato (RF09) | Mais a margem de espera de 1,5 s |
 | n, m e p | 50, 20 e 50 | Contrato (RNF06–RNF08) | Os controles de corrida falham com folga nesses valores |
 | Tolerância após SIGTERM | 10 s | Contrato (RNF10) | Depois dela, SIGKILL ao grupo |
-| Limite do build | 900 s | Operacional | O contrato não tem prazo de build; estourar dá U |
+| Teto do build | 3600 s | Operacional | Rafael decidiu que o build não tem prazo (C3). O teto só evita travar o avaliador; estourá-lo dá U |
 | Timeout por requisição | 10 s | Operacional | — |
 | Tolerância de relógio | 10 s | Operacional | Janela de `created_at` |
 | k (RF05) e amostras (RF02) | 3 e 20 | Operacional | — |
@@ -155,7 +157,7 @@ Todos estão em `evaluator/config.json`, marcados "provisório — calibrar". O 
 
 Cada controle é gerado por substituição textual em `evaluator/reference/`, e cada substituição precisa casar exatamente uma vez. Um controle passa quando os conjuntos de V e de U são **exatamente** os esperados, `A_i` é o esperado, a avaliação termina completa e nada sobra.
 
-Resultado da execução completa (`python3 evaluator/controls.py --jobs 3`, saída em `.pilot/eval/controls-final/`): **26 de 26 controles passaram**, em 272 s somados. Nenhum container ou rede `llmbench-eval-` sobrou. Os 22 controles negativos deram `A_i = 0`, com V exatamente nos requisitos-alvo. Os três positivos deram 35 S. `build-arquivo-ilegivel` testa a robustez do próprio avaliador: `A_i = 0`, sem V, e somente RNF04 como U.
+Resultado da execução completa com o avaliador 0.2.0 (`python3 evaluator/controls.py --jobs 3`, saída em `.pilot/eval/controls-v0.2/`): **26 de 26 controles passaram**. A versão 0.1.0 teve o mesmo resultado, em `.pilot/eval/controls-final/`. Nenhum container ou rede `llmbench-eval-` sobrou. Os 22 controles negativos deram `A_i = 0`, com V exatamente nos requisitos-alvo. Os três positivos deram 35 S. `build-arquivo-ilegivel` testa a robustez do próprio avaliador: `A_i = 0`, sem V, e somente RNF04 como U.
 
 | Controle | Alteração | V esperado | U esperado | S/V/U obtido | Resultado |
 |---|---|---|---|---|---|
@@ -214,16 +216,16 @@ Achado durante a construção: na primeira versão, `esquema-sensivel` removia o
 
 ## 8. Ambiguidades encontradas no contrato
 
-Registradas para decisão de Rafael. O avaliador adotou a interpretação indicada, sem alterar o contrato.
+Rafael confirmou em 24/09/2026 todas as interpretações abaixo, sem levá-las ao enunciado. O contrato não foi alterado por elas.
 
 | # | Trecho | Ambiguidade | Interpretação adotada |
 |---|---|---|---|
 | 1 | A4, RF01 | `Location: /api/links/{code}`: uma URL absoluta com esse caminho é aceitável? | Aceita relativa exata ou absoluta com o mesmo caminho. A leitura literal recusaria a absoluta |
-| 2 | B2, RF11 | "Coberto por RNF02": se o servidor não sobe, RF11 é V ou U? | U, como os demais funcionais. Com a fusão prevista em B6, N passa a 34 |
+| 2 | B2, RF11 | "Coberto por RNF02": se o servidor não sobe, RF11 é V ou U? | U, como os demais funcionais. Rafael decidiu manter RF11 e RNF02 separados: N = 35 |
 | 3 | B1, RNF03 | Não há como observar a violação sem comparar com uma execução com rede | S ou U, nunca V (§7) |
 | 4 | A6 | "Processo de `start.sh` encerrado com SIGTERM": o PID do script ou o grupo? Com `sh` sem `exec`, o sinal só ao PID deixaria o servidor órfão na porta 8080 | Grupo de processos, como Ctrl-C num terminal. `referencia-start-sem-exec` passa |
 | 5 | A2 | "Manter o servidor em primeiro plano" não corresponde a nenhum requisito | Não verificado. Um `start.sh` que sai com 0 e deixa um daemon passa em RNF02, e o fato fica em `diagnostics.start_exited_before_ready` |
-| 6 | A2, RNF01 | Não há prazo para `build.sh` | Limite operacional de 900 s; estourar dá U, não V |
+| 6 | A2, RNF01 | Não há prazo para `build.sh` | Sem prazo, por decisão de Rafael (C3). O teto operacional é de 3600 s; estourá-lo dá U, não V |
 | 7 | A2 | `DATA_DIR` e `BASE_URL` existem durante o build? | Não. `DATA_DIR` precisa estar vazio no primeiro início |
 | 8 | A4 | `alias: null` ou `expires_at: null`: ausência ou tipo errado (422)? | Não testado; a referência trata como ausente |
 | 9 | A4 | URL com caracteres não ASCII (IRI) e sua codificação em `Location` | Não testado |
@@ -238,11 +240,18 @@ Registradas para decisão de Rafael. O avaliador adotou a interpretação indica
 | 18 | A4 | "Redirecionamento com sucesso" para contar visita | Qualquer 3xx com `Location`; o 302 exato fica em RF04 |
 | 19 | B6 | Granularidade desigual: RN02 tem cinco casos, e RN05, um na semente | Mantida. O avaliador acrescentou um segundo caso a RN05 |
 
-## 9. Pendências de Rafael
+## 9. Decisões e pendências
 
-O avaliador não decide estes pontos; eles só ficam registrados.
+Rafael decidiu em 24/09/2026. As três primeiras decisões estão também na Parte C do contrato:
 
-- **Script público de testes de fumaça (C4).** Continua em aberto. Os checks não foram escritos para serem publicados, e esta matriz marca o que seria público.
-- **Exigência de lockfile (C5).** Continua em aberto. O avaliador não registra ainda se a entrega trazia lock. Isso cabe em M15 ou ser adicionado como diagnóstico.
-- **Valores de prazo (C3).** Todos estão provisórios em `config.json`. A resposta "Não tem" ao item 2 da última conversa ficou ambígua: pode significar "ainda sem valores" ou "sem limite". Se for "sem limite" para o build, o avaliador ainda precisa de um limite operacional; hoje estourá-lo dá U. Se for para a prontidão, RNF02 deixaria de ser verificável como está escrito.
-- **Fusão RF11/RNF02 (B6)** e as interpretações da §8.
+- **Script público de testes de fumaça (C4):** não será entregue. Os checks continuam reservados. A coluna "Exemplo" da matriz indica apenas o que o enunciado mostra.
+- **Lockfile (C5):** não vira requisito. O avaliador registra em `diagnostics.dependencies` os manifestos e lockfiles presentes, ignorando `node_modules`, `.venv`, `vendor` e similares. `requirements*.txt` só conta como lock quando todas as linhas têm `--hash`; se todas estiverem fixadas com `==`, sem hash, ficam em `pinned_requirements`. Para Maven, que não tem lock padrão, há uma nota. Nada disso afeta o veredito.
+- **Prazo do build (C3):** não há prazo. O "Não tem" da conversa anterior significava "sem limite" para o build. O avaliador mantém um teto operacional de 3600 s só para não travar.
+- **RF11 e RNF02:** continuam separados; N = 35.
+- **Interpretações da §8:** todas confirmadas, sem mudança no enunciado.
+
+Continuam em aberto:
+
+- **Valores do contrato ainda `[A DEFINIR]` (C3):** prazo de prontidão, segundos até a expiração, n, m e p, e tolerância após SIGTERM. Estão provisórios em `config.json` e devem ser calibrados em piloto com entregas reais, em especial a partida da JVM.
+- **Rede no `build.sh` (C3):** a proposta de A2, que libera somente os registros de pacotes, ainda aguarda confirmação. O avaliador já a implementa.
+- **Perfil de carga de RNF11:** não definido. RNF11 continua como stub.

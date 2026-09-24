@@ -34,7 +34,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
-EVALUATOR_VERSION = "0.1.0"
+EVALUATOR_VERSION = "0.2.0"
 CONTRACT_VERSION = "0.1"
 PREFIX = "llmbench-eval-"
 PROXY_ALIAS = "eval-proxy"
@@ -111,6 +111,40 @@ def load_config(path):
     return raw, values
 
 
+MANIFESTS = {"package.json", "go.mod", "pom.xml", "build.gradle", "build.gradle.kts", "pyproject.toml",
+             "Pipfile", "setup.py", "setup.cfg"}
+LOCKS = {"package-lock.json", "npm-shrinkwrap.json", "yarn.lock", "pnpm-lock.yaml", "go.sum", "poetry.lock",
+         "Pipfile.lock", "uv.lock", "pdm.lock"}
+VENDORED = ("node_modules", ".git", ".venv", "venv", "vendor", "target", "__pycache__")
+
+
+def dependency_profile(members):
+    """Manifestos e lockfiles presentes na entrega (diagnóstico C5; sem efeito no veredito)."""
+    manifests, locks, pinned = [], [], []
+    for info, data in members:
+        parts = info.name.split("/")
+        if not info.isfile() or any(p in VENDORED for p in parts[:-1]):
+            continue
+        base = parts[-1]
+        if base in MANIFESTS:
+            manifests.append(info.name)
+        elif base in LOCKS:
+            locks.append(info.name)
+        elif base.startswith("requirements") and base.endswith(".txt"):
+            manifests.append(info.name)
+            lines = [l.split("#")[0].strip() for l in (data or b"").decode("utf-8", "replace").splitlines()]
+            reqs = [l for l in lines if l and not l.startswith("-")]
+            if reqs and all("--hash=" in l for l in reqs):
+                locks.append(info.name + " (com --hash)")
+            elif reqs and all("==" in l for l in reqs):
+                pinned.append(info.name)
+    note = None
+    if any(m.endswith("pom.xml") for m in manifests):
+        note = "Maven não tem lockfile padrão; versões fixas no pom.xml não fixam dependências transitivas por intervalo"
+    return {"manifests": manifests, "locks": locks, "pinned_requirements": pinned,
+            "has_lock": bool(locks), "note": note}
+
+
 def pack_delivery(path):
     """Tar sem compressão com a raiz da entrega, e hash da árvore para rastreabilidade."""
     path = Path(path)
@@ -150,7 +184,7 @@ def pack_delivery(path):
             else:
                 tree.update(info.linkname.encode())
                 dst.addfile(info)
-    return buf.getvalue(), tree.hexdigest(), len(members)
+    return buf.getvalue(), tree.hexdigest(), len(members), dependency_profile(members)
 
 
 def tail(path_or_text, lines=8, width=300):
@@ -302,15 +336,16 @@ class Run:
         if r.returncode == 0:
             self.set("RNF01", "S", f"build.sh terminou com código 0 em {seconds} s", evidence)
         elif r.returncode == 124:
-            self.set("RNF01", "U", f"build.sh excedeu o limite operacional de {timeout} s; o contrato não define prazo de build", evidence)
+            self.set("RNF01", "U", f"build.sh excedeu o teto operacional de {timeout} s; o contrato não tem prazo de build", evidence)
         else:
             reason = {126: " (build.sh sem permissão de execução)", 127: " (build.sh ausente)"}.get(r.returncode, "")
             self.set("RNF01", "V", f"build.sh terminou com código {r.returncode}{reason}", evidence)
         return r.returncode == 0
 
     def execute(self):
-        tar_bytes, tree_hash, count = pack_delivery(self.delivery)
+        tar_bytes, tree_hash, count, deps = pack_delivery(self.delivery)
         self.diag["delivery"] = {"path": str(self.delivery), "tree_sha256": tree_hash, "entries": count}
+        self.diag["dependencies"] = deps
         info = json.loads(docker("image", "inspect", self.image).stdout)[0]
         self.diag["image_id"] = info["Id"]
         self.setup(tar_bytes)
@@ -469,7 +504,7 @@ class Run:
             "duration_seconds": round(time.monotonic() - t0, 2),
             "image": self.image,
             "config": {"base_url": self.base_url, "params": self.cfg,
-                       "provisional": "todos os parâmetros estão como 'provisório — calibrar' em evaluator/config.json"},
+                       "provisional": "parâmetros do contrato e operacionais provisórios ('provisório — calibrar'); o teto de build é operacional, pois o contrato não tem prazo de build"},
             "counts": {**counts, "N": N_REQUIRED},
             "A_i": 1 if counts["S"] == N_REQUIRED else 0,
             "M3": round(counts["S"] / N_REQUIRED, 4),
@@ -510,6 +545,11 @@ def render_summary(result):
         lines.append(f"{rid:<6} {r['verdict']}  {r['summary'][:150]}")
     if result["evaluator_errors"]:
         lines += ["", "Falhas do avaliador:"] + ["  " + e[:300] for e in result["evaluator_errors"]]
+    deps = result["diagnostics"].get("dependencies")
+    if deps:
+        lines += ["", "Dependências (diagnóstico C5): manifestos " + (", ".join(deps["manifests"]) or "nenhum")
+                  + "; lockfiles " + (", ".join(deps["locks"]) or "nenhum")
+                  + (f"; requirements fixados sem hash: {', '.join(deps['pinned_requirements'])}" if deps["pinned_requirements"] else "")]
     sig = result["diagnostics"].get("sigterm", [])
     if sig:
         lines += ["", "SIGTERM (diagnóstico RNF10): " + "; ".join(

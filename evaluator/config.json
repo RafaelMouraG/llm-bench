@@ -19,7 +19,7 @@
     "sigterm_tolerance_seconds": {"value": 10, "status": "provisório — calibrar", "onde": "RNF10 (diagnóstico)", "nota": "Espera após SIGTERM antes do SIGKILL; o tempo medido só é registrado, sem veredito"}
   },
   "operacional": {
-    "build_timeout_seconds": {"value": 900, "status": "provisório — calibrar", "nota": "O contrato não define prazo para build.sh; estourar este limite deixa RNF01 como U"},
+    "build_timeout_seconds": {"value": 3600, "status": "teto operacional", "nota": "Rafael decidiu em 24/09/2026 que build.sh não tem prazo no contrato; o teto só evita travar o avaliador, e estourá-lo deixa RNF01 como U"},
     "request_timeout_seconds": {"value": 10, "status": "provisório — calibrar"},
     "clock_tolerance_seconds": {"value": 10, "status": "provisório — calibrar", "nota": "Folga ao comparar created_at com o relógio do cliente"},
     "expiry_margin_seconds": {"value": 1.5, "status": "provisório — calibrar", "nota": "Espera extra depois do instante de expiração antes de pedir o 410"},
