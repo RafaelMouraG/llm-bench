@@ -89,7 +89,7 @@ Depois do piloto com a tarefa real ([registro](../../docs/piloto-tarefa-real.md)
 - `simulado` de ponta a ponta: 35 S, sem avisos, sem sobras.
 - Harness `shell` sem saída, com configuração alternativa: aviso de entrega sem arquivos e `ok: true`.
 
-Na tentativa real seguinte (`20260924T180503Z-mimo-393380`), a sessão do OpenCode foi exportada com 142.965 bytes, acima do limite que truncava o método antigo, e o resumo registrou `harness_end.last_reason: length` e os avisos de entrega vazia e de limite de saída.
+Na tentativa real seguinte (`20260924T180503Z-mimo-393380`), a sessão do OpenCode foi exportada com 142.965 bytes, acima do limite que truncava o método antigo, e o resumo registrou `harness_end.last_reason: length` e os avisos de entrega vazia e de limite de saída. Na tentativa real do Opus (`20260924T184717Z-opus-474850`), `harness_end` registrou `stop_reason: end_turn` a partir do evento `result`. No stream real, as mensagens do assistente trazem `stop_reason` nulo, então a detecção de limite depende do `result`.
 
 ## 5. Decisões provisórias e pendentes
 

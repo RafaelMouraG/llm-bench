@@ -127,7 +127,7 @@ A avaliação da referência leva cerca de 8 s. Uma entrega que não fica pronta
 Fora da aceitação:
 
 - **RNF10:** somente diagnóstico. O tempo até o término após SIGTERM fica em `diagnostics.sigterm`, sem veredito.
-- **RNF11:** stub em `not_evaluated`, porque o perfil de carga não foi definido.
+- **RNF11:** continua em `not_evaluated` no `evaluate.py`. A latência é medida à parte, como diagnóstico, por `evaluator/latency.py` (§10), com perfil de carga provisório.
 - **RNF12 a RNF14:** não entram.
 
 ## 5. Parâmetros provisórios
@@ -212,7 +212,7 @@ Achado durante a construção: na primeira versão, `esquema-sensivel` removia o
   - Proxy: aceita só HTTPS (CONNECT na porta 443); Gradle não é suportado, como na imagem.
 - **Isolamento.** O avaliador usa o mesmo desenho do piloto: rede interna, proxy com lista explícita e sondas de saída. Resolução DNS de serviços do host e tentativas adversariais não foram certificadas.
 - **Tamanho.** O snapshot e as listagens crescem com `node_modules` ou caches Maven. A listagem para em 50.000 entradas (`truncated`), e o snapshot usa até 2 GiB de tmpfs.
-- **Latência (RNF11).** Não implementada.
+- **Latência (RNF11).** Fora da avaliação: é medida pelo diagnóstico da §10, com perfil provisório.
 
 ## 8. Ambiguidades encontradas no contrato
 
@@ -254,4 +254,45 @@ Rafael decidiu em 24/09/2026. As quatro primeiras decisões estão também na Pa
 Continuam em aberto:
 
 - **Valores do contrato ainda `[A DEFINIR]` (C3):** prazo de prontidão, segundos até a expiração, n, m e p, e tolerância após SIGTERM. Estão provisórios em `config.json` e devem ser calibrados em piloto com entregas reais, em especial a partida da JVM.
-- **Perfil de carga de RNF11:** não definido. RNF11 continua como stub.
+- **Perfil de carga de RNF11:** não decidido. O diagnóstico da §10 usa um perfil provisório, em `rnf11_perfil_carga`.
+
+## 10. Diagnóstico de latência (RNF11, M16)
+
+Acrescentado em 24/09/2026, a pedido de Rafael. `evaluator/latency.py` mede o tempo de resposta de uma entrega congelada. **Não é aceitação:** não produz veredito, não altera `A_i` e não muda `evaluate.py`. Os resultados do piloto estão no [registro](piloto-tarefa-real.md), §8.
+
+```sh
+python3 evaluator/latency.py evaluator/reference --label referencia
+python3 evaluator/latency.py .pilot/attempts/<run_id>/delivery.tar --label <nome>
+```
+
+**Fluxo.**
+
+1. **Ambiente e build.** Mesmo ambiente limpo do avaliador, reaproveitando `Run` de `evaluate.py`: container novo, build com rede só para os registros, servidor sem rede e `DATA_DIR` em tmpfs. Containers e rede usam o prefixo `llmbench-lat-` e são removidos ao final.
+2. **CPUs separadas.** O servidor fica em `app_cpuset`, e o cliente em `client_cpuset`.
+3. **Pré-condição.** Entrega que não compila ou não fica pronta fica **sem M16**, registrada como ausente e sem valor, como pede a GQM.
+4. **Sementes.** Cria `seed_links` links antes de medir.
+5. **Medição.** Para `GET /{code}`, sobre os links semeados, e para `POST /api/links`, sem alias, em cada nível de `concurrency`: aquecimento descartado e número fixo de requisições em malha fechada.
+6. **Validação e estatísticas.** Cada resposta é validada contra o contrato: 302 com `Location` igual à `url`, ou 201 com objeto JSON e `code`. Os percentis (p50, p90, p95, p99 e máximo) usam só as respostas válidas. Respostas fora do contrato e erros de transporte entram na taxa de erro.
+7. **Sanidade.** A soma de `visits` dos links semeados deve ser igual ao número de 302 válidos, aquecimento incluído. Isso confirma que a carga chegou ao servidor e foi contada (RNF06).
+
+**Gerador de carga.** `evaluator/loadgen/main.go`, em Go e só com a biblioteca padrão, compilado dentro da imagem, sem rede, e guardado em `.pilot/latency/bin/`. Um cliente em Python seria mais lento que um servidor em Go e mediria a si mesmo. O cliente reusa conexões quando o servidor permite (keep-alive) e não segue redirecionamentos.
+
+**Parâmetros.** Estão em `evaluator/config.json`, seção `rnf11_perfil_carga`, todos "provisório — decidir":
+
+| Parâmetro | Valor |
+|---|---|
+| Sementes | 1.000 links |
+| Concorrência | 1, 8 e 32 |
+| `GET /{code}` | 1.000 de aquecimento e 10.000 medidas por nível |
+| `POST /api/links` | 500 de aquecimento e 5.000 medidas por nível |
+| CPUs | servidor em 2–3 (2 CPUs, 4 GiB); cliente em 8–11 |
+| Tempo limite | 10 s por requisição |
+
+**Limitações.**
+
+- **`DATA_DIR` em tmpfs:** `fsync` quase não custa, então a latência de escrita não representa disco. Diferenças de durabilidade entre entregas, como `fsync` por gravação ou só no encerramento, ficam invisíveis.
+- **Malha fechada:** sob saturação, subestima a cauda (*coordinated omission*). A vazão reportada é a de saturação daquele nível.
+- **Contagem fixa de requisições:** em servidores rápidos, a janela de medição fica curta, 40–200 ms no piloto, mais sujeita a transientes. Um perfil por duração seria mais robusto.
+- **Limite do cliente:** a vazão acima de cerca de 100 mil req/s pode estar limitada pelo cliente. Nesses níveis, é um limite inferior.
+- **Rede:** cliente e servidor ficam no mesmo host, numa rede bridge interna. A latência não inclui rede real.
+
