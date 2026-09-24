@@ -46,6 +46,10 @@ check java java --version
 check javac javac --version
 check maven mvn --version
 check gcc gcc --version
+check claude claude --version
+check codex codex --version
+check codex-code-mode-host test -x /usr/local/bin/codex-code-mode-host
+check opencode opencode --version
 check go-run sh -c 'mkdir -p /workspace/gr && cd /workspace/gr && printf "package main\nfunc main(){println(\"ok\")}\n" > m.go && go run m.go'
 check root-readonly sh -c '! touch /usr/local/x 2>/dev/null'
 check non-root sh -c 'test "$(id -u)" = 1001'

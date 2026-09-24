@@ -39,5 +39,21 @@
       "status": "provisório — calibrar",
       "nota": "Memória de tmpfs conta no limite do container; o snapshot pós-build fica em /evaluator"
     }
+  },
+  "rnf11_perfil_carga": {
+    "status": "adotado por Rafael em 24/09/2026 (Q9 da GQM); valores numéricos a revisar",
+    "nota": "Perfil de carga do diagnóstico de latência (RNF11, M16), usado só por evaluator/latency.py. O contrato deixa o perfil [A DEFINIR]; o contrato não foi alterado. Não afeta a aceitação nem evaluate.py, que ignora esta seção.",
+    "seed_links": 1000,
+    "open": {"rate": 500, "warmup_s": 5, "duration_s": 30, "max_inflight": 256,
+             "nota": "Taxa fixa abaixo da capacidade da entrega mais lenta do piloto (cerca de 2.200 POST/s); latência contada do instante agendado"},
+    "closed": {"concurrency": 32, "warmup_s": 2, "duration_s": 10, "max_requests": 300000,
+               "nota": "Saturação; o teto de requisições limita o crescimento de DATA_DIR e da memória em servidores rápidos"},
+    "request_timeout_ms": 10000,
+    "phase_timeout_seconds": 900,
+    "app_cpuset": "2-3",
+    "client_cpuset": "8-11",
+    "client_cpus": 4,
+    "data_dir": {"value": "disk", "status": "decidido por Rafael em 24/09/2026",
+                 "nota": "Volume Docker no SSD do host, para que o custo de fsync de cada entrega apareça; 'tmpfs' repete o ambiente do avaliador"}
   }
 }
