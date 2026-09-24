@@ -46,6 +46,14 @@
       "status": "provisório — decidir",
       "nota": "Executar por último para preservar a cota"
     },
+    "astra": {
+      "harness": "codex",
+      "model": "gpt-6-astra",
+      "effort": "high",
+      "provider_hosts": ["chatgpt.com", "api.openai.com", "auth.openai.com"],
+      "status": "provisório — decidir",
+      "nota": "Incluído por Rafael em 24/09/2026 no piloto com a tarefa real e, depois, na coleta oficial. Mesma credencial e mesmo harness do Sol; gpt-6-astra/high é a configuração global do Codex de Rafael (docs/verificacao-ambiente.md)"
+    },
     "simulado": {
       "harness": "simulated",
       "model": null,

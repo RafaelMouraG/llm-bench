@@ -11,7 +11,7 @@ Na raiz do repositório, com Docker, os três CLIs e a imagem `llm-bench-runtime
 ```sh
 python3 scripts/run-attempt.py opus --dry-run    # prompt, rede e comando, sem containers nem credenciais
 python3 scripts/run-attempt.py simulado          # ponta a ponta sem modelo: copia a referência
-python3 scripts/run-attempt.py opus              # tentativa real; também muse e sol
+python3 scripts/run-attempt.py opus              # tentativa real; também muse, sol e astra
 python3 scripts/run-attempt.py muse --timeout 1800 --no-evaluate
 ```
 
@@ -111,9 +111,9 @@ Estão em `config.json` e não foram decididas por Rafael:
 
 ## 6. Limitações
 
-- **Credenciais:** lidas dos caminhos do computador de Rafael pelo mesmo código do piloto (`scripts/run-pilot.py`). Em outro computador, é preciso ajustá-los.
+- **Credenciais:** lidas dos caminhos do computador de Rafael pelo mesmo código do piloto (`scripts/run-pilot.py`). Em outro computador, é preciso ajustá-los. O runner escolhe a credencial e o extrator de consumo pelo harness (`PILOT_NAME_BY_HARNESS`): Sol e Astra usam a mesma credencial do Codex.
 - **Codex:** o formato de consumo continua sem validação em tentativa real, como no piloto.
 - **Entrega grande:** um `/workspace` com `node_modules` ou `.venv` é congelado inteiro, como manda o contrato. O tar pode ficar grande, e o `build.sh` do avaliador reinstala as dependências.
 - **Isolamento:** o desenho é o mesmo do piloto. DNS, serviços do host e tentativas adversariais não foram certificados.
 - **Rotas gratuitas:** as condições de dados e disponibilidade de Muse e MiMo continuam valendo ([piloto](../pilot/README.md)).
-- **MiMo retirado:** Rafael retirou o MiMo em 24/09/2026 ([registro](../../docs/piloto-tarefa-real.md)). Não terá substituto: a coleta segue com Opus, Sol e Muse. A entrada `mimo` foi removida de `config.json`. As tentativas já feitas registram em `summary.json` o modelo, o hash da configuração da época (`15781e13…`) e o comando.
+- **MiMo retirado:** Rafael retirou o MiMo em 24/09/2026 ([registro](../../docs/piloto-tarefa-real.md)). Não terá substituto. A coleta tem Opus, Sol, Astra e Muse; o Astra foi incluído por Rafael depois do piloto. A entrada `mimo` foi removida de `config.json`. As tentativas já feitas registram em `summary.json` o modelo, o hash da configuração da época (`15781e13…`) e o comando.

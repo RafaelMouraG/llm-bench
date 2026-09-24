@@ -2,7 +2,7 @@
 
 Data: 24/09/2026. Registro das primeiras tentativas da tarefa do encurtador ([contrato](contrato-encurtador.md), Parte A) executadas com o [runner da coleta](../infra/attempt/README.md) e avaliadas pelo [avaliador](avaliador.md) 0.2.0. **Nenhuma tentativa é oficial nem entra na análise do benchmark.** Os resumos registram `official_collection: false` e `phase: "piloto"`.
 
-Foram executados MiMo (duas vezes; a segunda a pedido de Rafael, com o runner corrigido), Muse, Opus e Sol (duas vezes). **Rafael retirou o MiMo** depois das duas entregas vazias (§3.1), sem substituto: a coleta segue com Opus, Sol e Muse. O Opus rodou depois da renovação da cota do plano Pro, com autorização explícita de Rafael. O Sol rodou depois da renovação da cota do ChatGPT, com autorização de Rafael. Na primeira tentativa, a entrega ficou vazia por falha da infraestrutura: faltava na imagem um binário do Codex (§4.7). Com a imagem corrigida e nova autorização de Rafael, a repetição teve a entrega aceita (§3.5). **Os três participantes da coleta, Opus, Sol e Muse, tiveram uma entrega aceita no piloto.**
+Foram executados MiMo (duas vezes; a segunda a pedido de Rafael, com o runner corrigido), Muse, Opus, Sol (duas vezes) e Astra. **Rafael retirou o MiMo** depois das duas entregas vazias (§3.1), sem substituto. O Opus rodou depois da renovação da cota do plano Pro, com autorização explícita de Rafael. O Sol rodou depois da renovação da cota do ChatGPT, com autorização de Rafael. Na primeira tentativa, a entrega ficou vazia por falha da infraestrutura: faltava na imagem um binário do Codex (§4.7). Com a imagem corrigida e nova autorização de Rafael, a repetição teve a entrega aceita (§3.5). Depois, Rafael incluiu no piloto o Astra (`gpt-6-astra`, high, no Codex), que também teve a entrega aceita (§3.6), e decidiu incluí-lo na coleta oficial. **Os quatro participantes da coleta, Opus, Sol, Astra e Muse, tiveram uma entrega aceita no piloto.**
 
 Rafael autorizou em 24/09/2026 enviar a Parte A do contrato às rotas gratuitas Muse e MiMo, sabendo que os dados podem ser usados para treino ([condições das rotas](../infra/pilot/README.md)). Só a Parte A foi enviada. A Parte B e os checks não saíram do computador.
 
@@ -10,20 +10,20 @@ Rafael autorizou em 24/09/2026 enviar a Parte A do contrato às rotas gratuitas 
 
 | Item | Valor observado |
 |---|---|
-| Imagem | `llm-bench-runtime:20260924`: ID `sha256:aa1c6322f54a…39eb` nas cinco primeiras tentativas e avaliações, preservada como `llm-bench-runtime:20260924-v1-sem-code-mode-host`; ID `sha256:838a7837a0ec…01c6` na repetição do Sol, que difere só pelo `codex-code-mode-host` (§4.7) |
-| Harness | OpenCode 1.18.32 (MiMo e Muse); Claude Code 2.1.281 (Opus); Codex 0.156.1 (Sol) |
-| Configuração do runner | `infra/attempt/config.json`, SHA-256 `15781e13…908e` nas três. O código do runner mudou antes da repetição do MiMo (§4.1 e §4.2), sem alterar configuração, prompt, rede ou recursos; o resumo não registra o hash do script. Depois das três, a entrada `mimo` foi removida da configuração. As tentativas de Opus e Sol usaram a configuração nova, `1d77eac4…`, que difere só pela remoção |
+| Imagem | `llm-bench-runtime:20260924`: ID `sha256:aa1c6322f54a…39eb` nas cinco primeiras tentativas e avaliações, preservada como `llm-bench-runtime:20260924-v1-sem-code-mode-host`; ID `sha256:838a7837a0ec…01c6` na repetição do Sol e no Astra, que difere só pelo `codex-code-mode-host` (§4.7) |
+| Harness | OpenCode 1.18.32 (MiMo e Muse); Claude Code 2.1.281 (Opus); Codex 0.156.1 (Sol e Astra) |
+| Configuração do runner | `infra/attempt/config.json`, SHA-256 `15781e13…908e` nas três. O código do runner mudou antes da repetição do MiMo (§4.1 e §4.2), sem alterar configuração, prompt, rede ou recursos; o resumo não registra o hash do script. Depois das três, a entrada `mimo` foi removida da configuração. As tentativas de Opus e Sol usaram a configuração nova, `1d77eac4…`, que difere só pela remoção. O Astra usou a configuração com a entrada `astra` acrescentada, e o runner passou a escolher credencial e extrator de consumo pelo harness, e não pelo nome do participante |
 | Prompt | Preâmbulo + Parte A; contrato `21d9aa5a…91c7`, Parte A `f2dfdada…2910`, prompt `5ae1536c…c147`. Único placeholder: prazo de prontidão = 60 s |
 | Prazo por tentativa | 3600 s, com 10 s de tolerância (provisório) |
 | Recursos | 4 GiB, 2 CPUs, 512 processos; tmpfs com home de 2 GiB e `/tmp` e workspace de 1 GiB (provisório) |
 | Skills | Nenhuma |
 | Avaliador | 0.2.0, parâmetros provisórios de `evaluator/config.json` (prontidão 60 s, expiração 4 s, n/m/p = 50/20/50) |
 
-Nas seis tentativas, a preparação confirmou home e workspace vazios, UID 1001, ausência do home do host e do socket Docker. A rede confirmou `pypi.org` alcançável, `example.com` bloqueado pelo proxy e saída direta a IP bloqueada. MiMo e Muse não receberam credencial, porque as rotas gratuitas não usam. O Opus recebeu só a própria credencial do Claude Code, e o Sol só a do Codex (`.codex/auth.json`). `contains_credentials` ficou `false` nas seis.
+Nas sete tentativas, a preparação confirmou home e workspace vazios, UID 1001, ausência do home do host e do socket Docker. A rede confirmou `pypi.org` alcançável, `example.com` bloqueado pelo proxy e saída direta a IP bloqueada. MiMo e Muse não receberam credencial, porque as rotas gratuitas não usam. O Opus recebeu só a própria credencial do Claude Code, e Sol e Astra só a do Codex (`.codex/auth.json`), da mesma conta. `contains_credentials` ficou `false` nas sete.
 
 ## 2. Tentativas executadas
 
-Executadas uma de cada vez, na ordem: MiMo, Muse, repetição do MiMo (depois das correções do runner), Opus, Sol e repetição do Sol (depois da correção da imagem). Horários em UTC. "Tarefa" é o `docker exec` do harness; "total" inclui preparação, congelamento, limpeza e avaliação.
+Executadas uma de cada vez, na ordem: MiMo, Muse, repetição do MiMo (depois das correções do runner), Opus, Sol, repetição do Sol (depois da correção da imagem) e Astra. Horários em UTC. "Tarefa" é o `docker exec` do harness; "total" inclui preparação, congelamento, limpeza e avaliação.
 
 | Tentativa | Participante | Prazo | Saída | Tarefa (s) | Total (s) | Entrega | A_i | S/V/U |
 |---|---|---|---|---|---|---|---|---|
@@ -33,11 +33,12 @@ Executadas uma de cada vez, na ordem: MiMo, Muse, repetição do MiMo (depois da
 | `20260924T184717Z-opus-474850` | Opus, `claude-opus-5-5`, high | 3600 s | 0 | 196,7 | 212,0 | 9 arquivos, tar de 40 KiB | **1** | 35 / 0 / 0 |
 | `20260924T192934Z-sol-9d4b81` | Sol, `gpt-6-sol`, high | 3600 s | 0 | 60,6 | 62,3 | **vazia**: 0 arquivos, **falha da infraestrutura** (§4.7) | 0 | 0 / 1 / 34 |
 | `20260924T193701Z-sol-94fff0` | Sol, repetição com a imagem corrigida | 3600 s | 0 | 374,5 | 382,7 | 5 arquivos, tar de 30 KiB | **1** | 35 / 0 / 0 |
+| `20260924T200205Z-astra-baba70` | Astra, `gpt-6-astra`, high | 3600 s | 0 | 366,6 | 375,0 | 6 arquivos, tar de 40 KiB | **1** | 35 / 0 / 0 |
 
-Nas seis tentativas:
+Nas sete tentativas:
 
 - `timed_out: false`, nenhum processo remanescente antes do congelamento e `errors: []` no resumo.
-- Destinos no proxy do Sol, nas duas tentativas: `ALLOW chatgpt.com` e `pypi.org` (verificação do runner). O proxy bloqueou `ab.chatgpt.com` e dois hosts `*.oaiusercontent.com`, sem efeito visível nas tentativas (§4.7).
+- Destinos no proxy de Sol e Astra, nas três tentativas do Codex: `ALLOW chatgpt.com` e `pypi.org` (verificação do runner). O proxy bloqueou `ab.chatgpt.com` e dois hosts `*.oaiusercontent.com`, sem efeito visível nas tentativas (§4.7).
 - Destinos no proxy do Opus: `ALLOW api.anthropic.com` e `pypi.org` (verificação de rede do runner); nenhum download do agente. Destinos no proxy de MiMo e Muse: `ALLOW` só para `opencode.ai`, `models.opencode.ai`, `registry.npmjs.org` (dependências do próprio OpenCode) e `pypi.org` (verificação de rede do runner). O único `DENY` é `example.com:443`, da verificação de rede do runner. O agente não tentou nenhum destino bloqueado. Na repetição do MiMo houve um `CONNECT_FAILED registry.npmjs.org` entre 27 `ALLOW`, numa conexão do próprio OpenCode ao baixar dependências; não afetou a tentativa.
 - A limpeza da tentativa e da avaliação retornou 0 em todos os containers e redes, sem sobras.
 - Nas duas primeiras, `session_exported: false` e `reported_models: []`: o modelo servido não ficou registrado (§4.1). Na repetição do MiMo, com o runner corrigido, a sessão foi exportada (142.965 bytes, acima do limite de 128 KiB que truncava o método antigo) e o harness informou `mimo-v2.6-flash-free`, variante `default`. No Opus, o harness informou `claude-opus-5-5`; `harness_init` confirmou as ferramentas pedidas, sem `tools_mismatch` (§4.6).
@@ -54,6 +55,7 @@ No OpenCode, soma dos eventos `step_finish`, com `input_includes_cache` ainda `n
 | Opus | 14 turnos | 16 | 20.944 | 3.202 | 140.326 | 25.995 | US$ 0,65 (estimativa do harness) |
 | Sol (1ª, sem ferramenta) | 1 turno | 159.246 (inclui cache) | 800 | 369 (dentro da saída) | 148.608 | — | não informado |
 | Sol (repetição) | 1 turno | 364.012 (inclui cache) | 16.607 | 8.188 (dentro da saída) | 341.248 | — | não informado |
+| Astra | 1 turno | 188.131 (inclui cache) | 11.484 | 1.966 (dentro da saída) | 167.296 | — | não informado |
 
 ## 3. Resultados e diagnóstico
 
@@ -175,6 +177,27 @@ Execução do agente: 374 s, cerca de 10% do prazo. Houve 7 comandos, 5 alteraç
 
 - **Comando recusado pelo próprio Codex:** o stderr registra um comando recusado pela política do Codex, "rm -f style commands are not permitted", mesmo com `danger-full-access` e `-a never`. O agente refez a limpeza em Python (`shutil.rmtree`). É mais uma diferença de comportamento entre harnesses, sem efeito na entrega.
 
+### 3.6 Astra: 35 S
+
+`20260924T200205Z-astra-baba70`, com `gpt-6-astra` e esforço `high`, no Codex 0.156.1 e na imagem corrigida. Rafael o incluiu no piloto aproveitando a cota restante do ChatGPT. **Sem V nem U**, `A_i = 1`, sem avisos do runner e sem nenhuma chamada recusada no stderr. Como no Sol, o harness não informou o modelo servido.
+
+Entrega e stack (M15):
+
+- **Arquivos:** `server.py` (cerca de 13 KB), `tests/test_api.py` (14 testes com `unittest`), `build.sh`, `start.sh`, `README.md` e `.gitignore`.
+- **Stack:** Python 3.11 só com a biblioteca padrão: `ThreadingHTTPServer` com HTTP/1.1, mas com `Connection: close` em toda resposta. SQLite em `DATA_DIR` com WAL e `synchronous=FULL`, fila de conexões de 128 e tratamento de SIGTERM. A leitura de corpo aceita `Transfer-Encoding: chunked`.
+- **Dependências:** nenhuma.
+- **`build.sh`:** compila `server.py` em memória, sem gerar bytecode. **`start.sh`:** usa `exec python3 -u server.py` com `PYTHONDONTWRITEBYTECODE=1`.
+
+Avaliação:
+
+- **Tempos:** build em 0,06 s e prontidão em 0,07 s.
+- **SIGTERM:** encerrou o processo com código 0 em 0,1 s nos três inícios.
+- **Estado:** 0 arquivos alterados fora de `DATA_DIR`.
+
+Execução do agente: 367 s, cerca de 10% do prazo. Houve 7 comandos e 3 alterações de arquivo: sondagem, com busca por `AGENTS.md`; implementação; testes; uma correção; e nova rodada de testes.
+
+Sol e Astra usam o mesmo harness, a mesma conta e o mesmo esforço, e diferem só no modelo. Os dois escolheram a mesma stack. O Astra gastou menos tokens (188 mil de entrada e 11,5 mil de saída, contra 364 mil e 16,6 mil) e escreveu mais testes (14 contra 3).
+
 ## 4. Problemas do instrumento encontrados
 
 O avaliador e o contrato não foram alterados. Os problemas de §4.1 e §4.2 foram corrigidos no runner depois das duas primeiras tentativas, a pedido de Rafael. Os `summary.json` delas continuam como foram gravados. A repetição do MiMo é uma tentativa nova, registrada ao lado da primeira, que ela não substitui.
@@ -263,7 +286,7 @@ Quatro tentativas, duas delas sem entrega, não bastam para calibrar. O que elas
 
 | Parâmetro | Observação | Sugestão |
 |---|---|---|
-| Prazo por tentativa (3600 s) | MiMo terminou em 255 s e 958 s, por limite de saída e não por prazo. As entregas aceitas terminaram por conta própria: Muse em 602 s (17%), Opus em 197 s (5,5%) e Sol em 374 s (10%) | Nada indica que o prazo limita. Com uma entrega aceita por participante, 1800 s ainda deixaria folga de três vezes sobre a mais lenta. Reduzir exige mais tentativas, inclusive com stacks mais pesadas |
+| Prazo por tentativa (3600 s) | MiMo terminou em 255 s e 958 s, por limite de saída e não por prazo. As entregas aceitas terminaram por conta própria: Muse em 602 s (17%), Opus em 197 s (5,5%), Sol em 374 s (10%) e Astra em 367 s (10%) | Nada indica que o prazo limita. Com uma entrega aceita por participante, 1800 s ainda deixaria folga de três vezes sobre a mais lenta. Reduzir exige mais tentativas, inclusive com stacks mais pesadas |
 | Prazo de prontidão (60 s) | Python da biblioteca padrão e binário Go: 0,07 s nos dois | Sem informação para JVM e Node; o dado que falta continua sendo a partida da JVM |
 | Build (sem prazo; teto de 3600 s) | Python: 0,06 s. Go só com a biblioteca padrão: 6,9 s, compilando sem cache | Nenhum ajuste indicado |
 | Expiração (4 s) e n/m/p (50/20/50) | Muse passou em RF09 e RNF06–RNF08 sem U por relógio | Nenhum ajuste indicado |
@@ -294,11 +317,11 @@ A pedido de Rafael, o tempo de resposta das entregas aceitas foi medido com o di
 
 - **Ambiente:** o mesmo ambiente limpo do avaliador, com `DATA_DIR` em tmpfs. O servidor ficou nas CPUs 2–3 (2 CPUs, 4 GiB), e o gerador de carga em Go nas CPUs 8–11.
 - **Carga:** 1.000 links semeados. Para `GET /{code}`: 1.000 requisições de aquecimento e 10.000 medidas. Para `POST /api/links`: 500 de aquecimento e 5.000 medidas. Tudo em malha fechada, com concorrência 1, 8 e 32.
-- **Repetição:** três rodadas intercaladas por entrega, em 24/09/2026, das 19:10Z às 19:26Z. O Sol foi medido depois, das 19:43Z às 19:58Z, também em três rodadas, com a imagem corrigida, que só difere no auxiliar do Codex, não usado pelo servidor.
+- **Repetição:** três rodadas intercaladas por entrega, em 24/09/2026, das 19:10Z às 19:26Z. O Sol foi medido depois, das 19:43Z às 19:58Z, e o Astra das 20:08Z às 20:09Z, ambos em três rodadas, com a imagem corrigida, que só difere no auxiliar do Codex, não usado pelo servidor.
 
 **Resultado geral.**
 
-- As 12 medições ficaram completas, sem nenhuma resposta fora do contrato nem erro de transporte.
+- As 15 medições ficaram completas, sem nenhuma resposta fora do contrato nem erro de transporte.
 - Em todas, a soma de visitas bateu com os 33.000 redirecionamentos 302 válidos.
 - Nenhuma sobra `llmbench-lat-`.
 
@@ -322,6 +345,10 @@ A pedido de Rafael, o tempo de resposta das entregas aceitas foi medido com o di
 | | | | 32 | 0,41 | **53,9** | **529** [329–529] | 7.730 |
 | | | `POST` | 1 | **41,0** | 42,0 | 43 | 24 |
 | | | | 32 | **41,0** | 44,0 | 50 | 770 |
+| Astra | Python stdlib + SQLite, HTTP/1.1 com `Connection: close` | `GET /{code}` | 1 | 0,38 | 0,47 | 1,5 | 2.580 |
+| | | | 32 | 1,78 | **104** | **730** [530–830] | 3.710 |
+| | | `POST` | 1 | 0,45 | 0,54 | 2,3 | 2.180 |
+| | | | 32 | 1,94 | **129** [106–129] | **1.030** [930–1.230] | 2.940 |
 
 A concorrência 8 fica entre as duas linhas em todos os casos. Os valores completos estão em `.pilot/latency/<run_id>/result.json`. A variação entre rodadas foi pequena: p50 dentro de ±15% da mediana, exceto o `POST` do Muse com c = 32 (2,26 a 3,45 ms), e vazão dentro de ±15%, exceto o `POST` do Muse com c = 8 e 32 (até −21%).
 
@@ -332,6 +359,8 @@ A concorrência 8 fica entre as duas linhas em todos os casos. Os valores comple
   - **No `GET`, a referência é cerca de 6 vezes mais rápida.** Ela usa HTTP/1.1 com keep-alive, e o Muse ficou no HTTP/1.0 padrão do Python, com uma conexão TCP nova por requisição.
   - **No `POST`, a referência leva cerca de 41 ms, constante em qualquer concorrência.** Ela envia cabeçalhos e corpo em escritas separadas (`end_headers` e depois `wfile.write`). Com keep-alive, o corpo espera o ACK atrasado do cliente (Nagle com ACK atrasado de 40 ms). É uma hipótese forte, não confirmada por captura de pacotes: o valor bate com o mínimo do ACK atrasado do Linux, e o `GET`, sem corpo, não é afetado. O Muse não sofre isso porque fecha a conexão depois de cada resposta.
 - **O Sol confirmou a hipótese do `POST`.** Antes da medição, pelo código, previ o atraso de 41 ms: HTTP/1.1 com keep-alive, `end_headers()` e depois `wfile.write()`, o mesmo padrão da referência. O `POST` do Sol ficou em 41,0 ms constantes, com vazão de 24 req/s por conexão. A mesma escolha de implementação produz o mesmo efeito em duas entregas independentes.
+- **O Astra refinou a hipótese.** Pelo código, também previ 41 ms, porque ele escreve cabeçalhos e corpo separados. A previsão estava errada: o `POST` ficou em 0,45 ms. O Astra manda `Connection: close` e fecha a conexão depois de cada resposta, o que empurra o corpo na hora, como no Muse. O atraso exige a combinação de keep-alive com escritas separadas, e não só as escritas separadas. Em troca, o Astra paga uma conexão TCP nova por requisição: GET com c = 1 em 0,38 ms, como o Muse, contra 0,22 ms do Sol e 0,06 ms da referência.
+- **Cauda do Astra com concorrência:** p99 de 19 a 34 ms com c = 8 e de 104 a 129 ms com c = 32, e máximo perto de 1 s. A fila de conexões é de 128, então os picos não se explicam pela fila de 5, como no Muse. A causa não foi determinada; a suspeita é a disputa entre threads Python e o SQLite com `synchronous=FULL` a cada visita.
 - **Cauda do Sol no `GET` com concorrência:** o p50 fica baixo (0,23 a 0,41 ms), mas o p99 sobe para 18 ms com c = 8 e 54 ms com c = 32, e o máximo chega a 0,5 s. A causa provável é a trava nas visitas e a disputa entre threads Python pelo GIL, o que não foi verificado. É um perfil diferente do Muse: mediana melhor, cauda pior.
 - **Cauda de cerca de 1 s no Muse:** com concorrência 8 e 32, o máximo chega perto de 1.030 ms em quase todas as rodadas, sem afetar o p99. É consistente com retransmissão de SYN depois de a fila de conexões encher. O Muse usa a fila padrão do `socketserver`, de 5 conexões; a referência usa 128. Com uma conexão por requisição, a fila enche sob concorrência.
 - **Durabilidade não medida:** o Muse faz `fsync` a cada gravação (SQLite com `synchronous=FULL`). O Opus só escreve no arquivo e faz `fsync` ao encerrar, o que basta para o SIGTERM do contrato, mas não para uma queda do sistema. Em tmpfs, o `fsync` quase não custa. Com `DATA_DIR` em disco, as escritas do Muse ficariam bem mais lentas, e a diferença entre os dois cresceria.

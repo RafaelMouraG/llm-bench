@@ -28,6 +28,7 @@ Atualização de 24/09/2026: a [verificação inicial do ambiente](verificacao-a
 | GPT Sol 6 | Codex | high | Selecionado; executar por último no piloto para preservar a cota disponível |
 | Muse Spark 1.3 Contributor Free | OpenCode | xhigh | Rota Contributor Free confirmada por Rafael; validar execução isolada |
 | MiMo-V2.6-Flash Free | OpenCode | sem variante; o catálogo não expõe esforço | **Retirado por Rafael** depois de duas entregas vazias no piloto com a tarefa real; sem substituto |
+| Astra (`gpt-6-astra`) | Codex | high | Incluído por Rafael na coleta oficial em 24/09/2026, depois da entrega aceita no piloto com a tarefa real |
 
 Decisão de Rafael em 24/09/2026: Sol em high, Muse na rota Contributor Free e Gemini em high. Ordem do piloto: Opus, Muse, Gemini e Sol por último. Essa ordem operacional do piloto não define a ordem das futuras repetições oficiais.
 
@@ -36,6 +37,8 @@ Nova decisão de Rafael, no mesmo dia: Gemini 3.8 Flash descartado, após duas t
 Terceira decisão de Rafael, no mesmo dia: MiMo-V2.6-Flash Free retirado depois do [piloto com a tarefa real](piloto-tarefa-real.md). Nas duas tentativas, o modelo esgotou o limite de 32 mil tokens de saída num único passo de raciocínio, antes de escrever qualquer arquivo, e as entregas ficaram vazias. O catálogo não oferece nível de esforço para limitar esse comportamento. As tentativas continuam no registro.
 
 Quarta decisão de Rafael, no mesmo dia: o MiMo não terá substituto. A coleta segue com três participantes: Opus, Sol e Muse. As alternativas gratuitas avaliadas no OpenCode (Nemotron 3 Ultra, Ling 3.0 Flash e Nemotron 3.5 Lightning) não foram adotadas.
+
+Quinta decisão de Rafael, no mesmo dia: Astra (`gpt-6-astra`, esforço `high`, no Codex) entra na coleta oficial, depois de ter a entrega aceita no [piloto com a tarefa real](piloto-tarefa-real.md). A coleta passa a ter quatro participantes: Opus, Sol, Astra e Muse. Sol e Astra compartilham harness, conta e esforço e diferem só no modelo; isso permite comparar dois modelos com o harness fixo, mas os dois consomem a mesma cota do ChatGPT.
 
 Antes da coleta, será necessário registrar, por configuração: provedor, identificador solicitado e identificador efetivo quando observável, nível de raciocínio, versão do harness, parâmetros relevantes, arquivos de configuração e manifesto das skills. Aliases mutáveis e configurações não observáveis deverão ser declarados como limitações.
 

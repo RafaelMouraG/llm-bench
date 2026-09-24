@@ -32,6 +32,10 @@ CONTRACT = ROOT / "docs/contrato-encurtador.md"
 EVAL_CONFIG = ROOT / "evaluator/config.json"
 HELPER = ROOT / "evaluator/container_helper.py"
 PREFIX = "llmbench-attempt-"
+# run-pilot.py escolhe credencial e formato de consumo pelo nome do participante do piloto;
+# aqui a escolha é pelo harness, para que outro modelo no mesmo harness (ex.: astra no Codex)
+# use a mesma credencial e o mesmo extrator.
+PILOT_NAME_BY_HARNESS = {"claude": "opus", "codex": "sol", "opencode": "muse"}
 PROXY_ALIAS = "attempt-proxy"
 
 
@@ -285,7 +289,7 @@ def main():
     (out / "prompt.md").write_text(prompt)
     base = PREFIX + run_id.lower()
     net, proxy, agent = f"{base}-net", f"{base}-proxy", f"{base}-agent"
-    creds = pilot.credentials(args.participant) if p["harness"] in ("claude", "codex") else {}
+    creds = pilot.credentials(PILOT_NAME_BY_HARNESS[p["harness"]]) if p["harness"] in ("claude", "codex") else {}
     redact_values = list(pilot.sensitive_values(creds))
 
     def redact(text):
@@ -431,7 +435,8 @@ def main():
         summary["reported_models"] = sorted(reported)
         summary["reported_variants"] = sorted(variants)
         try:
-            summary["usage"] = pilot.usage_from_events(args.participant, events) if command else None
+            summary["usage"] = (pilot.usage_from_events(PILOT_NAME_BY_HARNESS[p["harness"]], events)
+                                if command and p["harness"] in PILOT_NAME_BY_HARNESS else None)
         except Exception as e:  # noqa: BLE001
             summary["usage"], summary["usage_error"] = None, redact(str(e))
     except Exception as e:  # noqa: BLE001
