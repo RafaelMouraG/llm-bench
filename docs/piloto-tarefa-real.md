@@ -1,20 +1,72 @@
-# Piloto com a tarefa real — resultados parciais
+# Piloto com a tarefa real
 
-Data: 24/09/2026. Registro das primeiras tentativas da tarefa do encurtador ([contrato](contrato-encurtador.md), Parte A) executadas com o [runner da coleta](../infra/attempt/README.md) e avaliadas pelo [avaliador](avaliador.md) 0.2.0. **Nenhuma tentativa é oficial nem entra na análise do benchmark.** Os resumos registram `official_collection: false` e `phase: "piloto"`.
+Data: 24/09/2026. **Piloto concluído.** Registro das tentativas da tarefa do encurtador ([contrato](contrato-encurtador.md), Parte A) executadas com o [runner da coleta](../infra/attempt/README.md) e avaliadas pelo [avaliador](avaliador.md) 0.2.0. **Nenhuma tentativa é oficial nem entra na análise do benchmark.** Os resumos registram `official_collection: false` e `phase: "piloto"`.
 
 Foram executados MiMo (duas vezes; a segunda a pedido de Rafael, com o runner corrigido), Muse, Opus, Sol (duas vezes) e Astra. **Rafael retirou o MiMo** depois das duas entregas vazias (§3.1), sem substituto. O Opus rodou depois da renovação da cota do plano Pro, com autorização explícita de Rafael. O Sol rodou depois da renovação da cota do ChatGPT, com autorização de Rafael. Na primeira tentativa, a entrega ficou vazia por falha da infraestrutura: faltava na imagem um binário do Codex (§4.7). Com a imagem corrigida e nova autorização de Rafael, a repetição teve a entrega aceita (§3.5). Depois, Rafael incluiu no piloto o Astra (`gpt-6-astra`, high, no Codex), que também teve a entrega aceita (§3.6), e decidiu incluí-lo na coleta oficial. **Os quatro participantes da coleta, Opus, Sol, Astra e Muse, tiveram uma entrega aceita no piloto.**
 
 Rafael autorizou em 24/09/2026 enviar a Parte A do contrato às rotas gratuitas Muse e MiMo, sabendo que os dados podem ser usados para treino ([condições das rotas](../infra/pilot/README.md)). Só a Parte A foi enviada. A Parte B e os checks não saíram do computador.
 
+## Resumo por pergunta da GQM
+
+Um piloto por configuração; os números não são oficiais e não medem variação entre tentativas. Detalhes nas seções indicadas.
+
+| Pergunta | O que o piloto mostrou |
+|---|---|
+| **Q1. Aceitação** | As quatro configurações da coleta tiveram `A_i = 1`, com 35 de 35 requisitos: Opus, Sol (na repetição), Astra e Muse. O MiMo teve 0 nas duas tentativas e foi retirado (§3.1). A primeira tentativa do Sol falhou por um defeito da imagem, não da entrega (§3.4) |
+| **Q2. Requisitos** | Nenhum V nas entregas aceitas. Os únicos V são RNF01 (`build.sh` ausente) nas três entregas vazias, com os outros 34 requisitos em U |
+| **Q3. Robustez** | Todos os requisitos de validação e erro (RN01–RN15) e de concorrência e durabilidade (RNF06–RNF09) com S nas quatro entregas aceitas |
+| **Q4. Execução limpa** | As quatro compilaram e subiram sem intervenção: build de 0,06 s (Python) a 6,9 s (Go), prontidão em 0,07 s, SIGTERM em até 0,1 s |
+| **Q5. Recursos** | Tempo de 197 s (Opus) a 602 s (Muse), no máximo 17% do prazo, sem intervenção humana. Tokens na §2.1: as semânticas dos harnesses diferem. Custo estimado pelo preço público de API (§2.1): Sol US$ 0,28, Muse US$ 0,63, Opus US$ 0,65 e Astra US$ 0,95 por tentativa. Não é o valor pago: a execução foi por assinatura ou rota gratuita |
+| **Q6. Variação** | Sem dados: uma tentativa por configuração, por decisão de Rafael (§9) |
+| **Q7. Qualidade interna** | A revisão qualitativa (M12) não foi feita no piloto. Para ela: testes automatizados no Astra (14), no Opus (10) e no Sol (3); o Muse apagou os próprios testes |
+| **Q8. Stack** | Três em Python com biblioteca padrão e SQLite (Muse, Sol e Astra, de 272 a 540 linhas) e uma em Go com biblioteca padrão e log em arquivo (Opus, 617 linhas). Nenhuma dependência externa |
+| **Q9. Tempo de resposta** | Com `DATA_DIR` em disco (§8.1): o Opus responde em cerca de 0,05 ms e aguenta de 110 mil a 190 mil req/s. As entregas em Python ficam entre 1,3 e 1,6 ms e aguentam de 740 a 1.440 req/s, exceto o POST do Sol, em 42 ms por causa da camada HTTP. Sob saturação, Sol e Astra têm picos de 0,4 a 3 s |
+
+### Gráficos
+
+Gerados a partir de `summary.json` e dos resultados da latência 0.2, com a mediana de três medições. A cor identifica a família do modelo: laranja para Claude (✻), verde-água para GPT (⬡) e azul para Muse (∞). O Astra aparece hachurado ou com ponto vazado, para se distinguir do Sol. Os gráficos mostram só as quatro entregas aceitas; as tentativas descartadas (MiMo e a 1ª do Sol) estão nas §2 e §3. Nos gráficos de latência, a referência do avaliador aparece em cinza, só como comparação. Os símbolos são marcadores genéricos, não logotipos. Versão interativa, com os valores ao passar o mouse, no artifact do piloto.
+
+**Q1 e Q2.** Requisitos satisfeitos por entrega aceita: 35 de 35, sem nenhum V ou U.
+
+![Requisitos satisfeitos por entrega aceita](img/piloto-aceitacao.png)
+
+**Q5.** Tempo de trabalho do agente, com a linha do prazo da coleta, e número de chamadas de ferramenta.
+
+![Tempo da tentativa e chamadas de ferramenta](img/piloto-tempo-ferramentas.png)
+
+**Q5, tokens.** Normalizados entre harnesses (§2.1): entrada nova, que inclui a escrita de cache; entrada lida do cache; e tokens gerados, com saída e raciocínio. Cada painel tem sua escala.
+
+![Tokens por tentativa](img/piloto-tokens.png)
+
+**Q5, custo estimado (M9).** Tokens vezes o preço público de API de cada modelo (§2.1). Não é o valor pago.
+
+![Custo estimado por tentativa](img/piloto-custo-estimado.png)
+
+**Q8.** Stack de cada entrega aceita.
+
+![Stack das entregas](img/piloto-stack.png)
+
+**Q9, carga normal.** 500 req/s por 30 s, com `DATA_DIR` em disco. O ponto é o p50 e a ponta da linha, o p99. Escala logarítmica.
+
+![Latência p50 e p99 em carga normal](img/piloto-latencia-carga-normal.png)
+
+**Q9, capacidade.** Vazão com 32 conexões simultâneas. O Opus atingiu o teto de 300 mil requisições, então o valor dele é um limite inferior. Escala logarítmica.
+
+![Vazão máxima com 32 conexões](img/piloto-capacidade.png)
+
+**Q9, cauda sob saturação.** Com 32 conexões simultâneas, o ponto é o p99 e a ponta da linha, o máximo. Escala logarítmica.
+
+![p99 e máximo sob saturação](img/piloto-cauda-saturacao.png)
+
 ## 1. Configuração comum
 
 | Item | Valor observado |
 |---|---|
-| Imagem | `llm-bench-runtime:20260924`: ID `sha256:aa1c6322f54a…39eb` nas cinco primeiras tentativas e avaliações, preservada como `llm-bench-runtime:20260924-v1-sem-code-mode-host`; ID `sha256:838a7837a0ec…01c6` na repetição do Sol e no Astra, que difere só pelo `codex-code-mode-host` (§4.7) |
+| Imagem | `llm-bench-runtime:20260924`: ID `sha256:aa1c6322f54a…39eb` nas cinco primeiras tentativas e avaliações, preservada como `llm-bench-runtime:20260924-v1-sem-code-mode-host`; ID `sha256:838a7837a0ec…01c6` na repetição do Sol e no Astra, que difere só pelo `codex-code-mode-host` (§4.7). Depois do piloto, a imagem foi reconstruída a partir dos binários fixos, com o mesmo conteúdo e o ID `sha256:f5e1796e3908…` (§9) |
 | Harness | OpenCode 1.18.32 (MiMo e Muse); Claude Code 2.1.281 (Opus); Codex 0.156.1 (Sol e Astra) |
 | Configuração do runner | `infra/attempt/config.json`, SHA-256 `15781e13…908e` nas três. O código do runner mudou antes da repetição do MiMo (§4.1 e §4.2), sem alterar configuração, prompt, rede ou recursos; o resumo não registra o hash do script. Depois das três, a entrada `mimo` foi removida da configuração. As tentativas de Opus e Sol usaram a configuração nova, `1d77eac4…`, que difere só pela remoção. O Astra usou a configuração com a entrada `astra` acrescentada, e o runner passou a escolher credencial e extrator de consumo pelo harness, e não pelo nome do participante |
 | Prompt | Preâmbulo + Parte A; contrato `21d9aa5a…91c7`, Parte A `f2dfdada…2910`, prompt `5ae1536c…c147`. Único placeholder: prazo de prontidão = 60 s |
-| Prazo por tentativa | 3600 s, com 10 s de tolerância (provisório) |
+| Prazo por tentativa | 3600 s, com 10 s de tolerância, em todas as tentativas do piloto. Para a coleta, Rafael decidiu 1800 s (§9) |
 | Recursos | 4 GiB, 2 CPUs, 512 processos; tmpfs com home de 2 GiB e `/tmp` e workspace de 1 GiB (provisório) |
 | Skills | Nenhuma |
 | Avaliador | 0.2.0, parâmetros provisórios de `evaluator/config.json` (prontidão 60 s, expiração 4 s, n/m/p = 50/20/50) |
@@ -56,6 +108,43 @@ No OpenCode, soma dos eventos `step_finish`, com `input_includes_cache` ainda `n
 | Sol (1ª, sem ferramenta) | 1 turno | 159.246 (inclui cache) | 800 | 369 (dentro da saída) | 148.608 | — | não informado |
 | Sol (repetição) | 1 turno | 364.012 (inclui cache) | 16.607 | 8.188 (dentro da saída) | 341.248 | — | não informado |
 | Astra | 1 turno | 188.131 (inclui cache) | 11.484 | 1.966 (dentro da saída) | 167.296 | — | não informado |
+
+### 2.2 Tokens normalizados e custo estimado (M9)
+
+Para comparar os harnesses, os tokens de cada entrega aceita foram normalizados em três categorias:
+
+- **Entrada nova:** o que o modelo leu pela primeira vez.
+  - Claude Code: `input_tokens` mais os escritos no cache.
+  - Codex: entrada menos o cache.
+  - OpenCode: `input`, que não inclui o cache. O cache lido (1,99 milhão) é maior que a entrada (110 mil), então não pode estar contido nela.
+- **Lida do cache:** o contexto relido a cada passo.
+- **Gerada:** saída mais raciocínio.
+  - Claude Code e Codex: `output_tokens`, que já inclui o raciocínio.
+  - OpenCode: `output` + `reasoning`.
+
+A estimativa de M9 aplica a cada categoria o preço público de API do modelo solicitado, conforme a GQM (§6). Preços consultados em 24/09/2026, em US$ por milhão de tokens:
+
+| Modelo | Entrada | Cache lido | Escrita de cache | Saída | Fonte |
+|---|---|---|---|---|---|
+| `claude-opus-5-5` | 4,00 | 0,20 | 8,00 (TTL de 1 h; 2× a entrada) | 20,00 | Referência da API da Anthropic (tabela de modelos, cache de 24/06/2026; multiplicadores de cache) |
+| `gpt-6-sol` (contexto curto, ≤ 272 mil) | 2,00 | 0,20 | 2,50 | 10,00 | developers.openai.com/api/docs/pricing; igual no OpenCode Zen |
+| `gpt-6-astra` (contexto curto, ≤ 272 mil) | 10,00 | 1,00 | 12,50 | 50,00 | developers.openai.com/api/docs/pricing; igual no OpenCode Zen |
+| Muse Spark 1.3 (rota paga) | 1,25 | 0,15 | não listado | 4,25 | opencode.ai/docs/zen |
+
+| Entrega | Entrada nova | Cache lido | Gerada | Custo estimado |
+|---|---|---|---|---|
+| Opus | 26.011 (16 + 25.995 escritos) | 140.326 | 20.944 (~3.202 de raciocínio) | **US$ 0,655** |
+| Sol | 22.764 | 341.248 | 16.607 (8.188 de raciocínio) | **US$ 0,280** |
+| Astra | 20.835 | 167.296 | 11.484 (1.966 de raciocínio) | **US$ 0,950** |
+| Muse | 110.239 | 1.993.693 | 46.280 (26.845 de raciocínio) | **US$ 0,634** |
+
+**Ressalvas:**
+
+- **Validação cruzada no Opus:** com escrita de cache de 1 hora e a saída incluindo o raciocínio, a estimativa dá US$ 0,65497, idêntica ao custo que o Claude Code informou. Isso confirma a interpretação dos campos do Claude Code.
+- **Faixa de contexto:** Sol e Astra foram estimados na faixa de contexto curto, supondo que nenhuma requisição passou de 272 mil tokens. A entrada total das tentativas (364 mil e 188 mil) soma vários turnos.
+- **Raciocínio do Muse:** foi cobrado como saída, como é usual.
+- **Muse:** a rota usada foi a gratuita. A estimativa usa o preço do Muse Spark 1.3 pago, que é outro identificador. Pela regra da GQM, o valor responde "quanto custaria na rota paga", não o custo da rota usada.
+- **Valor pago:** nenhuma das tentativas foi paga por token. Opus rodou por assinatura do Claude, Sol e Astra por assinatura do ChatGPT, e Muse pela rota gratuita.
 
 ## 3. Resultados e diagnóstico
 
@@ -282,19 +371,19 @@ O Claude Code usou `/tmp` livremente para os dados de teste (`mktemp -d`). Isso 
 
 ## 5. Implicações para os parâmetros provisórios
 
-Quatro tentativas, duas delas sem entrega, não bastam para calibrar. O que elas indicam:
+Sete tentativas, três delas sem entrega, não bastam para calibrar com precisão. O que elas indicam, e o que foi decidido depois (§9):
 
 | Parâmetro | Observação | Sugestão |
 |---|---|---|
-| Prazo por tentativa (3600 s) | MiMo terminou em 255 s e 958 s, por limite de saída e não por prazo. As entregas aceitas terminaram por conta própria: Muse em 602 s (17%), Opus em 197 s (5,5%), Sol em 374 s (10%) e Astra em 367 s (10%) | Nada indica que o prazo limita. Com uma entrega aceita por participante, 1800 s ainda deixaria folga de três vezes sobre a mais lenta. Reduzir exige mais tentativas, inclusive com stacks mais pesadas |
+| Prazo por tentativa (3600 s) | MiMo terminou em 255 s e 958 s, por limite de saída e não por prazo. As entregas aceitas terminaram por conta própria: Muse em 602 s (17%), Opus em 197 s (5,5%), Sol em 374 s (10%) e Astra em 367 s (10%) | **Decidido: 1800 s**, três vezes a entrega aceita mais lenta |
 | Prazo de prontidão (60 s) | Python da biblioteca padrão e binário Go: 0,07 s nos dois | Sem informação para JVM e Node; o dado que falta continua sendo a partida da JVM |
 | Build (sem prazo; teto de 3600 s) | Python: 0,06 s. Go só com a biblioteca padrão: 6,9 s, compilando sem cache | Nenhum ajuste indicado |
 | Expiração (4 s) e n/m/p (50/20/50) | Muse passou em RF09 e RNF06–RNF08 sem U por relógio | Nenhum ajuste indicado |
-| Recursos do container | Nenhum erro de memória ou processos. O runner não mede o pico de memória nem o uso dos tmpfs | Registrar o pico de memória do cgroup e o uso dos tmpfs antes de calibrar |
+| Recursos do container | Nenhum erro de memória ou processos | **Feito:** o runner registra memória, CPU, processos, E/S e uso de disco do container (§9) |
 | Tamanho da entrega | 30 KiB (Muse) e 40 KiB (Opus), só código-fonte; tmpfs de 1 GiB muito folgado | Sem ajuste antes de uma entrega com `node_modules`, `.venv` ou cache Maven |
 | Snapshot do avaliador (tmpfs de 2 GiB) | 108 MB no Opus, quase tudo cache de build do Go no home | Folgado; acompanhar em entregas com Maven ou `node_modules` |
 | Lockfile (C5) | Muse e Opus não têm dependências (o `go.mod` do Opus não tem `require`); `has_lock: false` não significa lock ausente | Registrar à parte "sem dependências" e "dependências sem lock" |
-| Permissões do OpenCode | `external_directory` recusado (§4.3) | Decidir antes da coleta |
+| Permissões do OpenCode | `external_directory` recusado (§4.3) | **Decidido:** documentar a diferença de paridade, sem corrigir |
 
 ## 6. Limpeza
 
@@ -302,16 +391,22 @@ Ao final, `docker ps -a` e `docker network ls` com o filtro `llmbench-` não lis
 
 ## 7. O que falta
 
-- **Binários dos harnesses fixos:** o build copia os binários do host, que se atualizam sozinhos (§4.7). Guardá-los com hash antes de congelar a imagem da coleta.
 - **MiMo:** retirado por Rafael em 24/09/2026, depois das duas entregas vazias (§3.1), sem substituto. As tentativas continuam neste registro. Continua em aberto como o protocolo classifica o término por limite de saída, que pode ocorrer com outros participantes.
 - **Runner corrigido em tentativa real:** a repetição do MiMo confirmou a exportação da sessão (143 KB) e os avisos de §4.2 no OpenCode. O Opus confirmou `harness_end`, `harness_init` e o consumo no Claude Code. O Sol confirmou o consumo e `harness_end` no Codex, mas não há como detectar limite de saída no Codex (`output_limit_hit: null`), e o modelo servido não aparece nos eventos.
 - **JVM e Node:** nenhuma entrega os exercitou. Python e Go ficaram prontos em 0,07 s. A calibração do prazo de prontidão para a JVM continua pendente.
-- **Perfil de carga do RNF11** (§8): decidir operações, concorrência, duração e se `DATA_DIR` fica em tmpfs ou em disco. O perfil usado no piloto é provisório.
 - **Manifesto do Claude Code:** registrar no protocolo que skills e agentes embutidos aparecem listados, mas não são invocáveis com as ferramentas configuradas (§4.6).
+- **Antes da coleta oficial:**
+  - valores `[A DEFINIR]` do contrato (prontidão, expiração, n/m/p e SIGTERM), que funcionaram com os valores do avaliador;
+  - classificação do término por limite de saída;
+  - ordem das execuções;
+  - congelamento dos manifestos de configuração;
+  - rubrica da revisão qualitativa (Q7).
 
 ## 8. Latência das entregas aceitas (RNF11, M16)
 
-A pedido de Rafael, o tempo de resposta das entregas aceitas foi medido com o diagnóstico `evaluator/latency.py` ([avaliador](avaliador.md), §10). **Não é aceitação e usa um perfil de carga provisório.** A referência do avaliador entra só como comparação: não é participante.
+A pedido de Rafael, o tempo de resposta das entregas aceitas foi medido com o diagnóstico `evaluator/latency.py` ([avaliador](avaliador.md), §10). **Não é aceitação.** A referência do avaliador entra só como comparação: não é participante.
+
+**Os resultados que valem estão na §8.1**, com o perfil adotado e `DATA_DIR` em disco. O restante desta seção registra a primeira medição, versão 0.1: perfil provisório, `DATA_DIR` em tmpfs e malha fechada com contagem fixa. Ela fica como histórico, porque foi o que levou às decisões sobre o perfil. Não é comparável à §8.1.
 
 **Condições.**
 
