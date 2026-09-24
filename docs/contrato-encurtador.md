@@ -245,7 +245,7 @@ O contrato usa `build.sh` e `start.sh` executados em um container limpo da mesma
 | Item | Onde | Observação |
 |---|---|---|
 | Prazo por tentativa | Protocolo | Deve permitir a entrega do escopo acima; calibrar em piloto com a tarefa real, sem otimizar para uma configuração |
-| Rede no `build.sh` | A2, RNF01 | Proposto em A2: somente os registros de pacotes, a mesma lista da tentativa; aguarda confirmação |
+| Rede no `build.sh` | A2, RNF01 | **Resolvido:** Rafael confirmou em 24/09/2026 a proposta de A2: durante o build, somente os registros de pacotes, a mesma lista da tentativa |
 | Prazo do `build.sh` | A2, RNF01 | **Resolvido:** Rafael decidiu em 24/09/2026 que não há prazo. O avaliador usa só um teto operacional para não travar; estourá-lo deixa RNF01 inconclusivo (U), e não violado |
 | Prazo de prontidão | A2, RNF02 | Inclui o tempo de inicialização de runtimes como a JVM |
 | Tempo para a expiração nos testes | RF09 | Margem suficiente para evitar falha por latência do próprio teste |

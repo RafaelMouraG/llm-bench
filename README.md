@@ -13,6 +13,7 @@ Proposta de pesquisa para comparar configurações completas de agentes de IA �
 - [Piloto de infraestrutura](docs/piloto-infraestrutura.md): tentativas sintéticas nos containers, resultados por participante e pendências. O ambiente está em [infra/pilot](infra/pilot/README.md).
 - [Imagem multi-linguagem](infra/runtime/README.md): ambiente candidato da coleta, com Python, Node, Go e Java, e o resultado da validação.
 - [Avaliador do encurtador](docs/avaliador.md): verificação automatizada dos 35 requisitos de aceitação sobre uma entrega congelada, com implementação de referência e controles. Documento privado. O código está em `evaluator/`.
+- [Runner da coleta](infra/attempt/README.md): uma tentativa da tarefa real por execução, com congelamento da entrega e avaliação em ambiente limpo. Validado sem modelo; nenhuma tentativa real executada.
 
 O encurtador de URL é a tarefa candidata, com stack livre e contrato HTTP a definir. Identificadores foram encontrados em catálogos e fontes oficiais; as configurações finais e o acesso aos modelos dentro dos containers ainda precisam de validação antes da coleta.
 
@@ -20,4 +21,4 @@ O repositório central deverá permanecer privado durante a coleta. Participante
 
 ## Próxima etapa
 
-Concluir o piloto de infraestrutura: executar o Sol, que também valida a extração de tokens no formato do Codex. Gemini foi substituído por MiMo-V2.6-Flash Free. Em paralelo, refinar as subperguntas e definições operacionais da GQM e depois fechar o escopo e os critérios de avaliação. O avaliador está pronto em versão provisória; seus parâmetros `[A DEFINIR]` serão calibrados com entregas reais no piloto.
+Concluir o piloto de infraestrutura: executar o Sol, que também valida a extração de tokens no formato do Codex. Gemini foi substituído por MiMo-V2.6-Flash Free. Em paralelo, refinar as subperguntas e definições operacionais da GQM e depois fechar o escopo e os critérios de avaliação. O avaliador e o runner da coleta estão prontos em versão provisória. O próximo passo é o piloto com a tarefa real, uma tentativa por participante, para calibrar o prazo por tentativa e os parâmetros `[A DEFINIR]`.

@@ -242,16 +242,16 @@ Rafael confirmou em 24/09/2026 todas as interpretações abaixo, sem levá-las a
 
 ## 9. Decisões e pendências
 
-Rafael decidiu em 24/09/2026. As três primeiras decisões estão também na Parte C do contrato:
+Rafael decidiu em 24/09/2026. As quatro primeiras decisões estão também na Parte C do contrato:
 
 - **Script público de testes de fumaça (C4):** não será entregue. Os checks continuam reservados. A coluna "Exemplo" da matriz indica apenas o que o enunciado mostra.
 - **Lockfile (C5):** não vira requisito. O avaliador registra em `diagnostics.dependencies` os manifestos e lockfiles presentes, ignorando `node_modules`, `.venv`, `vendor` e similares. `requirements*.txt` só conta como lock quando todas as linhas têm `--hash`; se todas estiverem fixadas com `==`, sem hash, ficam em `pinned_requirements`. Para Maven, que não tem lock padrão, há uma nota. Nada disso afeta o veredito.
 - **Prazo do build (C3):** não há prazo. O "Não tem" da conversa anterior significava "sem limite" para o build. O avaliador mantém um teto operacional de 3600 s só para não travar.
+- **Rede no `build.sh` (C3):** confirmada a proposta de A2, que libera somente os seis registros de pacotes. É o que o avaliador já faz.
 - **RF11 e RNF02:** continuam separados; N = 35.
 - **Interpretações da §8:** todas confirmadas, sem mudança no enunciado.
 
 Continuam em aberto:
 
 - **Valores do contrato ainda `[A DEFINIR]` (C3):** prazo de prontidão, segundos até a expiração, n, m e p, e tolerância após SIGTERM. Estão provisórios em `config.json` e devem ser calibrados em piloto com entregas reais, em especial a partida da JVM.
-- **Rede no `build.sh` (C3):** a proposta de A2, que libera somente os registros de pacotes, ainda aguarda confirmação. O avaliador já a implementa.
 - **Perfil de carga de RNF11:** não definido. RNF11 continua como stub.
